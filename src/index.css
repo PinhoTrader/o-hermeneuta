@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+  
+  --color-brand-primary: #5A5A40; /* Olive */
+  --color-brand-secondary: #f5f5f0; /* Warm off-white */
+  --color-brand-paper: #FFFFFF;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-secondary text-slate-900 font-sans antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm transition-all;
+}
+
+.step-active {
+  @apply text-brand-primary font-semibold underline underline-offset-8;
+}
+
+.fab-community {
+  @apply fixed bottom-8 right-8 w-16 h-16 rounded-full bg-brand-primary text-white shadow-[0_20px_50px_rgba(90,90,64,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 z-50 border-4 border-white ring-8 ring-brand-primary/5 cursor-pointer;
+}

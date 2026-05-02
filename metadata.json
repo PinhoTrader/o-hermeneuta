@@ -1,0 +1,6 @@
+{
+  "name": "O Hermeneuta",
+  "description": "Ferramenta avançada de hermenêutica bíblica baseada no método Cavar & Descobrir. Desenvolvida para guiar estudantes na exegese e homilética profunda.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["Autenticação Firebase", "Banco de Dados Firestore", "Instrutor de IA (Gemini)", "Fluxo de Estudo Estruturado"]
+}

@@ -1,0 +1,156 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdminEmail() {
+      return request.auth.token.email == 'escoladetradersead@gmail.com';
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isSuperAdminEmail() || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'student') == 'admin')
+      );
+    }
+
+    function isApproved() {
+      return isSignedIn() && (
+        isSuperAdminEmail() || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isApproved', false) == true)
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Helpers ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'createdAt', 'role', 'isApproved']) &&
+             data.email is string && data.email.size() <= 256 &&
+             data.role in ['student', 'professor', 'admin'] &&
+             data.isApproved is bool &&
+             (data.get('displayName', null) == null || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (data.get('photoURL', null) == null || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
+             (data.get('phone', null) == null || (data.phone is string && data.phone.size() <= 32));
+    }
+
+    function isValidStudy(data) {
+      return (data.get('userId', request.auth.uid) == request.auth.uid) &&
+             (data.get('title', 'Valid') is string && data.get('title', 'Valid').size() <= 200) &&
+             (data.get('status', 'draft') in ['draft', 'completed']) &&
+             (data.get('observations', '') is string && data.get('observations', '').size() <= 50000) &&
+             (data.get('genre', '') is string && data.get('genre', '').size() <= 100) &&
+             (data.get('structure', '') is string && data.get('structure', '').size() <= 10000) &&
+             (data.get('mainIdea', '') is string && data.get('mainIdea', '').size() <= 1000) &&
+             (data.get('transformingIntent', '') is string && data.get('transformingIntent', '').size() <= 1000);
+    }
+
+    function isMember(groupId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
+    }
+
+    function isProfessorOf(groupId) {
+      return get(/databases/$(database)/documents/groups/$(groupId)).data.professorId == request.auth.uid;
+    }
+
+    // --- Collection Routes ---
+
+    match /users/{userId} {
+      allow list: if isAdmin() || (isSignedIn() && (
+        resource == null || 
+        resource.data.email == request.auth.token.email || 
+        resource.data.role == 'professor' || 
+        resource.data.role == 'monitor' ||
+        resource.data.role == 'student' // Allow listing students for profile looks
+      ));
+      allow get: if isSignedIn();
+      allow create: if (isOwner(userId) || isAdmin()) && isValidUser(incoming());
+      allow update: if isAdmin() || (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role && incoming().isApproved == existing().isApproved);
+      allow delete: if isAdmin();
+    }
+
+    match /groups/{groupId} {
+      allow read: if isSignedIn() && isApproved() && (
+        resource.data.professorId == request.auth.uid || 
+        isMember(groupId) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && isApproved() && 
+                    incoming().professorId == request.auth.uid &&
+                    incoming().name is string && incoming().name.size() <= 100;
+                    
+      allow update: if isSignedIn() && isApproved() && (
+        (resource.data.professorId == request.auth.uid && incoming().professorId == resource.data.professorId) || 
+        isAdmin()
+      );
+
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.professorId == request.auth.uid);
+      
+      match /members/{memberId} {
+        allow read: if isSignedIn() && isApproved() && (
+          isProfessorOf(groupId) || isMember(groupId) || isAdmin()
+        );
+        allow create: if isSignedIn() && isApproved() && (
+          isProfessorOf(groupId) || isOwner(memberId) || isAdmin()
+        );
+        allow delete: if isSignedIn() && isApproved() && (
+          isProfessorOf(groupId) || isOwner(memberId) || isAdmin()
+        );
+      }
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && isApproved() && (
+          isProfessorOf(groupId) || isMember(groupId) || isAdmin()
+        );
+        allow create: if isSignedIn() && isApproved() && (
+          isProfessorOf(groupId) || isMember(groupId)
+        ) && incoming().senderId == request.auth.uid;
+      }
+    }
+
+    match /studies/{studyId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isOwner(existing().userId);
+      
+      allow create: if isSignedIn() && isValidId(studyId) && isValidStudy(incoming()) &&
+                     incoming().keys().hasAll(['userId', 'title', 'status', 'createdAt', 'updatedAt']) &&
+                     incoming().createdAt == request.time &&
+                     incoming().updatedAt == request.time;
+
+      allow update: if isOwner(existing().userId) && isValidStudy(incoming()) &&
+                    incoming().get('createdAt', existing().createdAt) == existing().createdAt &&
+                    incoming().updatedAt == request.time;
+      
+      allow delete: if isOwner(existing().userId);
+    }
+
+    match /academyProgress/{userId} {
+      allow get: if isOwner(userId) && isApproved();
+      allow write: if isOwner(userId) && isApproved() && (incoming().get('userId', userId) == userId);
+    }
+  }
+}

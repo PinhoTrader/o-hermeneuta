@@ -1,0 +1,130 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "BibleSelection": {
+      "title": "Bible Selection",
+      "description": "Text selection from the Bible",
+      "type": "object",
+      "properties": {
+        "book": { "type": "string" },
+        "chapter": { "type": "number" },
+        "verseStart": { "type": "number" },
+        "verseEnd": { "type": "number" },
+        "translation": { "type": "string" },
+        "text": { "type": "string" }
+      },
+      "required": ["book", "chapter", "verseStart", "verseEnd", "translation", "text"]
+    },
+    "Study": {
+      "title": "Hermeneutical Study",
+      "description": "A complete hermeneutical study from observation to sermon",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "completed"] },
+        "bibleSelection": { "$ref": "#/entities/BibleSelection" },
+        "observations": { "type": "string" },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "category": { "type": "string" },
+              "content": { "type": "string" }
+            }
+          }
+        },
+        "genre": { "type": "string" },
+        "structure": { "type": "string" },
+        "context": {
+          "type": "object",
+          "properties": {
+            "historical": { "type": "string" },
+            "cultural": { "type": "string" },
+            "literary": { "type": "string" }
+          }
+        },
+        "mainIdea": { "type": "string" },
+        "transformingIntent": { "type": "string" },
+        "sermonOutline": { "type": "string" },
+        "detailedSermon": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "status", "createdAt", "updatedAt"]
+    },
+    "Group": {
+      "title": "Learning Group",
+      "description": "A virtual classroom or group chat",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "professorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "professorId", "createdAt"]
+    },
+    "GroupMember": {
+      "title": "Group Member",
+      "description": "A student or monitor joined in a group",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "monitor"] },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "joinedAt"]
+    },
+    "AcademyProgress": {
+      "title": "Academy Progress",
+      "description": "Progress tracking for the methodology academy",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "completedLessons": { "type": "array", "items": { "type": "string" } },
+        "quizScores": { "type": "object" },
+        "lastAccessedLessonId": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "completedLessons", "quizScores", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/studies/{studyId}": {
+      "schema": "Study",
+      "description": "Hermeneutical studies"
+    },
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Virtual classrooms"
+    },
+    "/groups/{groupId}/members/{userId}": {
+      "schema": "GroupMember",
+      "description": "Members of a specific virtual classroom"
+    },
+    "/groups/{groupId}/messages/{messageId}": {
+      "schema": "object",
+      "description": "Group chat messages"
+    },
+    "/academyProgress/{userId}": {
+      "schema": "AcademyProgress",
+      "description": "User academy progress"
+    }
+  }
+}
