@@ -36,6 +36,7 @@ export default function AdminPanel() {
   const [selectedRole, setSelectedRole] = useState<UserRole>('professor');
   const [newUser, setNewUser] = useState({ email: '', name: '', phone: '' });
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -45,6 +46,7 @@ export default function AdminPanel() {
     setEditingUser(null);
     setSelectedRole(role);
     setNewUser({ email: '', name: '', phone: '' });
+    setFormError(null);
     setIsModalOpen(true);
   };
 
@@ -56,6 +58,7 @@ export default function AdminPanel() {
       name: user.displayName || '', 
       phone: user.phone || '' 
     });
+    setFormError(null);
     setIsModalOpen(true);
   };
 
@@ -110,6 +113,7 @@ export default function AdminPanel() {
 
   const handleRegisterUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setSubmitting(true);
     try {
       if (editingUser) {
@@ -127,7 +131,7 @@ export default function AdminPanel() {
       await fetchUsers();
     } catch (error: any) {
       console.error("Registration error:", error);
-      alert('Erro ao processar: ' + error.message);
+      setFormError('Erro ao processar: ' + error.message);
     } finally {
       setSubmitting(false);
     }
@@ -163,6 +167,10 @@ export default function AdminPanel() {
           <Button onClick={() => openModal('professor')}>
             <Shield size={18} />
             Cadastrar Professor
+          </Button>
+          <Button variant="outline" onClick={() => openModal('monitor')}>
+            <UserCheck size={18} />
+            Cadastrar Monitor
           </Button>
         </div>
       </div>
@@ -262,6 +270,7 @@ export default function AdminPanel() {
                     >
                       <option value="student">Estudante / Mentorado</option>
                       <option value="professor">Professor / Mentor</option>
+                      <option value="monitor">Monitor</option>
                       <option value="admin">Administrador</option>
                     </select>
                   </td>
@@ -362,14 +371,18 @@ export default function AdminPanel() {
                   <input 
                     required
                     type="email"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50/50 rounded-xl border-none outline-none focus:ring-2 focus:ring-brand-primary/20 text-slate-400 cursor-not-allowed"
+                    className={`w-full pl-10 pr-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-brand-primary/20 ${
+                      editingUser ? 'bg-slate-50/50 text-slate-400 cursor-not-allowed' : 'bg-slate-50 text-slate-900'
+                    }`}
                     placeholder="usuario@gmail.com"
                     value={newUser.email}
-                    readOnly
-                    disabled
+                    onChange={e => setNewUser({...newUser, email: e.target.value})}
+                    readOnly={!!editingUser}
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 italic">O e-mail não pode ser alterado por segurança.</p>
+                {editingUser && (
+                  <p className="text-[10px] text-slate-400 italic">O e-mail não pode ser alterado por segurança.</p>
+                )}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Telefone / Contato</label>
@@ -384,6 +397,11 @@ export default function AdminPanel() {
                   />
                 </div>
               </div>
+              {formError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                  {formError}
+                </p>
+              )}
               <div className="pt-4 flex gap-4">
                 <Button 
                   variant="outline" 

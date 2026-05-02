@@ -23,21 +23,96 @@ import { auth, db } from '../lib/firebase';
 
 import { UserProfile, UserRole } from '../types';
 
+export type AuthAction = 'google' | 'guest' | 'signOut' | null;
+
 interface AuthContextType {
   user: (User & { isGuest?: boolean }) | null;
   profile: UserProfile | null;
   loading: boolean;
+  authError: string | null;
+  authAction: AuthAction;
+  clearAuthError: () => void;
   signInWithGoogle: () => Promise<void>;
   signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const GUEST_USER_KEY = 'guest_user';
+
+function getFriendlyAuthError(error: unknown) {
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : '';
+
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    return 'Login cancelado. Você pode tentar novamente quando quiser.';
+  }
+
+  if (code === 'auth/network-request-failed') {
+    return 'Não foi possível conectar ao Google. Verifique sua internet e tente novamente.';
+  }
+
+  if (code === 'auth/popup-blocked') {
+    return 'O navegador bloqueou a janela de login. Libere pop-ups para este site e tente novamente.';
+  }
+
+  if (code === 'auth/unauthorized-domain') {
+    return 'Este domínio ainda não está autorizado no Firebase Auth. Adicione localhost e o domínio de produção nas configurações do Firebase.';
+  }
+
+  if (code === 'auth/operation-not-allowed') {
+    return 'O login com Google não está habilitado neste projeto Firebase.';
+  }
+
+  if (code === 'auth/invalid-api-key' || code === 'auth/app-not-authorized') {
+    return 'A configuração do Firebase não está válida para este app. Verifique apiKey, authDomain e domínio autorizado.';
+  }
+
+  return 'Não conseguimos concluir o login agora. Tente novamente em instantes.';
+}
+
+function createGuestUser() {
+  return {
+    uid: `guest_${Math.random().toString(36).slice(2, 11)}`,
+    displayName: 'Convidado',
+    email: 'convidado@cavar.descobrir',
+    isGuest: true
+  } as User & { isGuest: true };
+}
+
+function getStoredGuestUser() {
+  const guestData = localStorage.getItem(GUEST_USER_KEY);
+  if (!guestData) return null;
+
+  try {
+    const guestUser = JSON.parse(guestData) as User & { isGuest?: boolean };
+    if (!guestUser?.uid || !guestUser?.isGuest) {
+      localStorage.removeItem(GUEST_USER_KEY);
+      return null;
+    }
+    return guestUser;
+  } catch {
+    localStorage.removeItem(GUEST_USER_KEY);
+    return null;
+  }
+}
+
+function getGuestProfile(guestUser: User & { isGuest?: boolean }): UserProfile {
+  return {
+    uid: guestUser.uid,
+    displayName: guestUser.displayName || 'Convidado',
+    email: guestUser.email || 'convidado@cavar.descobrir',
+    role: 'guest',
+    isApproved: true,
+    createdAt: Date.now(),
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<(User & { isGuest?: boolean }) | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authAction, setAuthAction] = useState<AuthAction>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -110,18 +185,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(firebaseUser);
           setProfile(userProfile);
         } else {
-          const guestData = localStorage.getItem('guest_user');
-          if (guestData) {
-            const guestUser = JSON.parse(guestData);
+          const guestUser = getStoredGuestUser();
+          if (guestUser) {
             setUser(guestUser);
-            setProfile({
-              uid: guestUser.uid,
-              displayName: guestUser.displayName,
-              email: guestUser.email,
-              role: 'student',
-              isApproved: true,
-              createdAt: Date.now(),
-            });
+            setProfile(getGuestProfile(guestUser));
           } else {
             setUser(null);
             setProfile(null);
@@ -129,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error('Auth sync error:', error);
+        setAuthError('Não conseguimos sincronizar seu perfil. Tente sair e entrar novamente.');
         // Fallback to minimal user info to avoid complete crash
         if (firebaseUser) {
           setUser(firebaseUser);
@@ -140,41 +208,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
+  const clearAuthError = () => setAuthError(null);
+
   const signInWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    setAuthAction('google');
+    setAuthError(null);
     try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, provider);
-      localStorage.removeItem('guest_user');
+      // Guest studies remain stored as guest_study_* for a future migration flow.
+      localStorage.removeItem(GUEST_USER_KEY);
     } catch (error) {
       console.error('Login failed:', error);
+      setAuthError(getFriendlyAuthError(error));
+      throw error;
+    } finally {
+      setAuthAction(null);
     }
   };
 
   const signInAsGuest = async () => {
-    const guestUser = {
-      uid: `guest_${Math.random().toString(36).substr(2, 9)}`,
-      displayName: 'Convidado',
-      email: 'convidado@cavar.descobrir',
-      isGuest: true
-    } as any;
-    
-    localStorage.setItem('guest_user', JSON.stringify(guestUser));
-    setUser(guestUser);
+    setAuthAction('guest');
+    setAuthError(null);
+    try {
+      const guestUser = createGuestUser();
+      localStorage.setItem(GUEST_USER_KEY, JSON.stringify(guestUser));
+      setUser(guestUser);
+      setProfile(getGuestProfile(guestUser));
+    } catch (error) {
+      console.error('Guest login failed:', error);
+      setAuthError('Não foi possível iniciar o modo convidado neste navegador.');
+      throw error;
+    } finally {
+      setAuthAction(null);
+    }
   };
 
   const signOut = async () => {
+    setAuthAction('signOut');
+    setAuthError(null);
     try {
       await firebaseSignOut(auth);
-      localStorage.removeItem('guest_user');
+      localStorage.removeItem(GUEST_USER_KEY);
       setUser(null);
+      setProfile(null);
     } catch (error) {
       console.error('Sign out failed:', error);
+      setAuthError('Não foi possível sair agora. Tente novamente.');
+      throw error;
+    } finally {
+      setAuthAction(null);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, signInAsGuest, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, authError, authAction, clearAuthError, signInWithGoogle, signInAsGuest, signOut }}>
       {children}
     </AuthContext.Provider>
   );

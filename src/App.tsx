@@ -1,69 +1,26 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { StudyProvider, useStudy } from './context/StudyContext';
-import { Layout } from './components/Layout';
+import { ProtectedRoute, AdminRoute } from './components/AuthRoutes';
 import { Button } from './components/ui/Button';
-import LandingPage from './pages/LandingPage';
-import Dashboard from './pages/Dashboard';
-import AcademyPage from './pages/AcademyPage';
-import StudyController from './pages/StudyController';
-import GroupsPage from './pages/GroupsPage';
-import AdminPanel from './pages/AdminPanel';
-import { Shield, BookOpen } from 'lucide-react';
-import { auth } from './lib/firebase';
+import { BookOpen } from 'lucide-react';
 import React from 'react';
 
-// Protected Route Component
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, profile, loading } = useAuth();
+const LandingPage = React.lazy(() => import('./pages/LandingPage'));
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const AcademyPage = React.lazy(() => import('./pages/AcademyPage'));
+const StudyController = React.lazy(() => import('./pages/StudyController'));
+const GroupsPage = React.lazy(() => import('./pages/GroupsPage'));
+const AdminPanel = React.lazy(() => import('./pages/AdminPanel'));
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-screen bg-brand-secondary">
-      <div className="animate-spin text-brand-primary">◌</div>
+function PageFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-brand-secondary text-brand-primary">
+      <div className="animate-spin">○</div>
     </div>
   );
-  
-  if (!user) return <Navigate to="/" />;
-  
-  const isAdminEmail = user?.email === 'escoladetradersead@gmail.com';
-  
-  if (profile && !profile.isApproved && !user.isGuest && !isAdminEmail) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-secondary p-6">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl text-center space-y-6">
-          <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto">
-            <Shield size={40} />
-          </div>
-          <h2 className="text-2xl font-bold font-serif">Aguardando Aprovação</h2>
-          <p className="text-slate-500 leading-relaxed">
-            Sua conta foi criada com sucesso, mas precisa ser aprovada por um administrador 
-            antes que você possa acessar o sistema.
-          </p>
-          <p className="text-sm text-slate-400 italic">
-            Por favor, contate seu mentor ou o administrador do curso.
-          </p>
-          <Button variant="outline" className="w-full" onClick={() => auth.signOut()}>
-            Sair e tentar outro login
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return <Layout>{children}</Layout>;
 }
 
-// Admin Route Component
-function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { profile, loading } = useAuth();
-
-  if (loading) return <div>Carregando...</div>;
-  if (!profile || profile.role !== 'admin') return <Navigate to="/dashboard" />;
-
-  return <Layout>{children}</Layout>;
-}
-
-// New Study Creator Component
 function NewStudyRoute() {
   const { createNewStudy } = useStudy();
   const navigate = useNavigate();
@@ -80,8 +37,8 @@ function NewStudyRoute() {
     try {
       const id = await createNewStudy(title);
       navigate(`/study/${id}`);
-    } catch (err) {
-      setError("Falha ao criar estudo. Tente novamente.");
+    } catch {
+      setError('Falha ao criar estudo. Tente novamente.');
       setIsCreating(false);
     }
   };
@@ -143,48 +100,49 @@ export default function App() {
     <AuthProvider>
       <StudyProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
+          <React.Suspense fallback={<PageFallback />}>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
 
-            <Route path="/academy" element={
-              <ProtectedRoute>
-                <AcademyPage />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/study/:studyId" element={
-              <ProtectedRoute>
-                <StudyController />
-              </ProtectedRoute>
-            } />
+              <Route path="/academy" element={
+                <ProtectedRoute>
+                  <AcademyPage />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/study/:studyId" element={
+                <ProtectedRoute>
+                  <StudyController />
+                </ProtectedRoute>
+              } />
 
-            <Route path="/new-study" element={
-              <ProtectedRoute>
-                <NewStudyRoute />
-              </ProtectedRoute>
-            } />
+              <Route path="/new-study" element={
+                <ProtectedRoute>
+                  <NewStudyRoute />
+                </ProtectedRoute>
+              } />
 
-            <Route path="/groups" element={
-              <ProtectedRoute>
-                <GroupsPage />
-              </ProtectedRoute>
-            } />
+              <Route path="/groups" element={
+                <ProtectedRoute>
+                  <GroupsPage />
+                </ProtectedRoute>
+              } />
 
-            <Route path="/admin" element={
-              <AdminRoute>
-                <AdminPanel />
-              </AdminRoute>
-            } />
+              <Route path="/admin" element={
+                <AdminRoute>
+                  <AdminPanel />
+                </AdminRoute>
+              } />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </React.Suspense>
         </BrowserRouter>
       </StudyProvider>
     </AuthProvider>

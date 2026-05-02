@@ -1,4 +1,3 @@
-import React from 'react';
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
 import { CheckCircle2, ChevronLeft, ArrowRight } from 'lucide-react';
@@ -8,10 +7,13 @@ export default function FinalReview({ onBack, onComplete }: { onBack: () => void
 
   const sections = [
     { title: 'Observações', content: currentStudy?.observations },
+    { title: 'Perguntas', content: currentStudy?.questionsText },
     { title: 'Gênero & Estrutura', content: currentStudy?.genre },
+    { title: 'Contexto', content: currentStudy?.contextText },
     { title: 'Ideia Principal', content: currentStudy?.mainIdea },
     { title: 'Intento Transformador', content: currentStudy?.transformingIntent },
     { title: 'Esboço do Sermão', content: currentStudy?.sermonOutline },
+    { title: 'Sermão Detalhado', content: currentStudy?.detailedSermon },
   ];
 
   return (
@@ -22,14 +24,16 @@ export default function FinalReview({ onBack, onComplete }: { onBack: () => void
       </div>
 
       <div className="space-y-6">
-        {sections.map((s, i) => (
-          <div key={i} className="glass-card p-8 rounded-3xl space-y-4">
+        {sections.map((section, index) => (
+          <div key={section.title} className="glass-card p-8 rounded-3xl space-y-4">
             <h3 className="text-lg font-bold font-serif text-brand-primary flex items-center gap-2">
-               <span className="w-6 h-6 rounded-full bg-brand-primary/10 text-[10px] flex items-center justify-center">0{i+1}</span>
-               {s.title}
+              <span className="w-6 h-6 rounded-full bg-brand-primary/10 text-[10px] flex items-center justify-center">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              {section.title}
             </h3>
             <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap italic">
-              {s.content || <span className="text-slate-300">Não preenchido</span>}
+              {section.content || <span className="text-slate-300">Não preenchido</span>}
             </div>
           </div>
         ))}

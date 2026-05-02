@@ -117,14 +117,14 @@ export async function registerUserAccount(data: { email: string, name: string, p
       });
     } else {
       const newUserRef = doc(collection(db, 'users'));
-      const newUser: UserProfile = {
+      const newUser = {
         uid: newUserRef.id,
         email: data.email,
         displayName: data.name,
         phone: data.phone,
         role: data.role,
         isApproved: true,
-        createdAt: Date.now()
+        createdAt: serverTimestamp()
       };
       await setDoc(newUserRef, newUser);
     }

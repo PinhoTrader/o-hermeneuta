@@ -28,9 +28,11 @@ export interface Study {
   bibleSelection?: BibleSelection;
   observations?: string;
   questions?: Question[];
+  questionsText?: string;
   genre?: string;
   structure?: string;
   context?: ContextAnalysis;
+  contextText?: string;
   mainIdea?: string;
   transformingIntent?: string;
   sermonOutline?: string;
@@ -39,7 +41,7 @@ export interface Study {
   updatedAt: number; // timestamp
 }
 
-export type UserRole = 'student' | 'professor' | 'monitor' | 'admin';
+export type UserRole = 'guest' | 'student' | 'professor' | 'monitor' | 'contributor' | 'admin';
 
 export interface Group {
   id: string;
@@ -60,13 +62,25 @@ export interface Message {
 export interface UserProfile {
   uid: string;
   email: string;
+  name?: string;
   displayName?: string;
   photoURL?: string;
   phone?: string;
+  age?: number;
+  denomination?: string;
   role: UserRole;
+  isContributor?: boolean;
   isApproved: boolean;
   groupIds?: string[];
   createdAt: number;
+  updatedAt?: number;
+}
+
+export interface AiUsage {
+  uid: string;
+  studyId: string;
+  queryCount: number;
+  lastQueryAt: number;
 }
 
 export interface AcademyProgress {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
-import { Search, Check, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 import { fetchBibleText } from '../services/bibleService';
 
@@ -16,6 +16,29 @@ const BOOKS = [
   "Filemom", "Hebreus", "Tiago", "1 Pedro", "2 Pedro", "1 João", "2 João", "3 João", "Judas", "Apocalipse"
 ];
 
+interface BibleSelectionForm {
+  book: string;
+  chapter: number;
+  verseStart: number;
+  verseEnd: number;
+  translation: string;
+  text: string;
+}
+
+export function validateBibleSelection(selection: BibleSelectionForm): string | null {
+  if (!selection.book) return 'Selecione um livro bíblico.';
+  if (!Number.isFinite(selection.chapter) || selection.chapter < 1) return 'Informe um capítulo válido.';
+  if (!Number.isFinite(selection.verseStart) || selection.verseStart < 1) return 'Informe um versículo inicial válido.';
+  if (!Number.isFinite(selection.verseEnd) || selection.verseEnd < 1) return 'Informe um versículo final válido.';
+  if (selection.verseEnd < selection.verseStart) return 'O versículo final deve ser maior ou igual ao inicial.';
+  return null;
+}
+
+function parsePositiveInt(value: string) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 export default function BibleSelection({ onNext }: { onNext: () => void }) {
   const { currentStudy, updateCurrentStudy } = useStudy();
   const [selection, setSelection] = useState({
@@ -27,11 +50,20 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
     text: ''
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const TRANSLATIONS = ["ARA", "NVI", "NVT", "ARC", "NAA"];
 
   const handleConfirm = async () => {
-    if (!selection.book) return;
+    const validationError = validateBibleSelection(selection);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setError(null);
+    setWarning(null);
     setLoading(true);
     
     try {
@@ -43,6 +75,10 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
         selection.translation
       );
 
+      if (bibleText.startsWith('Ops!') || bibleText.startsWith('Erro ao carregar')) {
+        setWarning('Não conseguimos carregar o texto automaticamente agora. Você pode continuar e preencher/conferir o trecho manualmente.');
+      }
+
       await updateCurrentStudy({
         bibleSelection: {
           ...selection,
@@ -52,6 +88,14 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
       onNext();
     } catch (error) {
       console.error(error);
+      setWarning('Não conseguimos carregar o texto automaticamente agora. Você pode continuar e preencher/conferir o trecho manualmente.');
+      await updateCurrentStudy({
+        bibleSelection: {
+          ...selection,
+          text: 'Texto não carregado automaticamente. Confira o trecho em sua Bíblia e continue o estudo.'
+        }
+      });
+      onNext();
     } finally {
       setLoading(false);
     }
@@ -85,7 +129,7 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
               min="1"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-primary outline-none"
               value={selection.chapter}
-              onChange={(e) => setSelection({...selection, chapter: parseInt(e.target.value)})}
+              onChange={(e) => setSelection({...selection, chapter: parsePositiveInt(e.target.value)})}
             />
           </div>
         </div>
@@ -98,7 +142,7 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
               min="1"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-primary outline-none"
               value={selection.verseStart}
-              onChange={(e) => setSelection({...selection, verseStart: parseInt(e.target.value)})}
+              onChange={(e) => setSelection({...selection, verseStart: parsePositiveInt(e.target.value)})}
             />
           </div>
           <div className="space-y-2">
@@ -108,7 +152,7 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
               min="1"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-primary outline-none"
               value={selection.verseEnd}
-              onChange={(e) => setSelection({...selection, verseEnd: parseInt(e.target.value)})}
+              onChange={(e) => setSelection({...selection, verseEnd: parsePositiveInt(e.target.value)})}
             />
           </div>
           <div className="space-y-2">
@@ -122,6 +166,18 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
             </select>
           </div>
         </div>
+
+        {error && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+            {error}
+          </p>
+        )}
+
+        {warning && (
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+            {warning}
+          </p>
+        )}
 
         <div className="pt-4">
           <Button 

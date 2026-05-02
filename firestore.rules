@@ -50,11 +50,16 @@ service cloud.firestore {
     function isValidUser(data) {
       return data.keys().hasAll(['email', 'createdAt', 'role', 'isApproved']) &&
              data.email is string && data.email.size() <= 256 &&
-             data.role in ['student', 'professor', 'admin'] &&
+             data.role in ['guest', 'student', 'professor', 'monitor', 'contributor', 'admin'] &&
              data.isApproved is bool &&
+             (data.get('name', null) == null || (data.name is string && data.name.size() <= 100)) &&
              (data.get('displayName', null) == null || (data.displayName is string && data.displayName.size() <= 100)) &&
              (data.get('photoURL', null) == null || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
-             (data.get('phone', null) == null || (data.phone is string && data.phone.size() <= 32));
+             (data.get('phone', null) == null || (data.phone is string && data.phone.size() <= 32)) &&
+             (data.get('age', null) == null || (data.age is int && data.age >= 1 && data.age <= 120)) &&
+             (data.get('denomination', null) == null || (data.denomination is string && data.denomination.size() <= 100)) &&
+             (data.get('isContributor', null) == null || data.isContributor is bool) &&
+             (data.get('updatedAt', null) == null || data.updatedAt is timestamp);
     }
 
     function isValidStudy(data) {
@@ -62,10 +67,26 @@ service cloud.firestore {
              (data.get('title', 'Valid') is string && data.get('title', 'Valid').size() <= 200) &&
              (data.get('status', 'draft') in ['draft', 'completed']) &&
              (data.get('observations', '') is string && data.get('observations', '').size() <= 50000) &&
+             (data.get('questionsText', '') is string && data.get('questionsText', '').size() <= 50000) &&
              (data.get('genre', '') is string && data.get('genre', '').size() <= 100) &&
              (data.get('structure', '') is string && data.get('structure', '').size() <= 10000) &&
+             (data.get('contextText', '') is string && data.get('contextText', '').size() <= 50000) &&
              (data.get('mainIdea', '') is string && data.get('mainIdea', '').size() <= 1000) &&
-             (data.get('transformingIntent', '') is string && data.get('transformingIntent', '').size() <= 1000);
+             (data.get('transformingIntent', '') is string && data.get('transformingIntent', '').size() <= 1000) &&
+             (data.get('sermonOutline', '') is string && data.get('sermonOutline', '').size() <= 50000) &&
+             (data.get('detailedSermon', '') is string && data.get('detailedSermon', '').size() <= 100000) &&
+             isValidBibleSelection(data.get('bibleSelection', null));
+    }
+
+    function isValidBibleSelection(selection) {
+      return selection == null || (
+        selection.book is string && selection.book.size() <= 80 &&
+        selection.chapter is int && selection.chapter >= 1 &&
+        selection.verseStart is int && selection.verseStart >= 1 &&
+        selection.verseEnd is int && selection.verseEnd >= selection.verseStart &&
+        selection.translation is string && selection.translation.size() <= 16 &&
+        selection.text is string && selection.text.size() <= 50000
+      );
     }
 
     function isMember(groupId) {
@@ -80,13 +101,11 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow list: if isAdmin() || (isSignedIn() && (
-        resource == null || 
-        resource.data.email == request.auth.token.email || 
-        resource.data.role == 'professor' || 
-        resource.data.role == 'monitor' ||
-        resource.data.role == 'student' // Allow listing students for profile looks
+        resource.data.email == request.auth.token.email ||
+        (isApproved() && resource.data.role in ['professor', 'monitor', 'contributor']) ||
+        (isApproved() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'student') in ['professor', 'monitor', 'contributor'])
       ));
-      allow get: if isSignedIn();
+      allow get: if isOwner(userId) || isAdmin() || isApproved();
       allow create: if (isOwner(userId) || isAdmin()) && isValidUser(incoming());
       allow update: if isAdmin() || (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role && incoming().isApproved == existing().isApproved);
       allow delete: if isAdmin();
@@ -151,6 +170,22 @@ service cloud.firestore {
     match /academyProgress/{userId} {
       allow get: if isOwner(userId) && isApproved();
       allow write: if isOwner(userId) && isApproved() && (incoming().get('userId', userId) == userId);
+    }
+
+    match /aiUsage/{usageId} {
+      allow get: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() &&
+                    incoming().uid == request.auth.uid &&
+                    incoming().studyId is string && incoming().studyId.size() <= 128 &&
+                    incoming().queryCount is int && incoming().queryCount >= 0 &&
+                    incoming().lastQueryAt == request.time;
+      allow update: if isSignedIn() &&
+                    existing().uid == request.auth.uid &&
+                    incoming().uid == existing().uid &&
+                    incoming().studyId == existing().studyId &&
+                    incoming().queryCount is int && incoming().queryCount >= existing().queryCount &&
+                    incoming().lastQueryAt == request.time;
+      allow delete: if isSignedIn() && existing().uid == request.auth.uid;
     }
   }
 }

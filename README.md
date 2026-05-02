@@ -9,7 +9,7 @@ Baseado no método **Cavar & Descobrir**, este aplicativo guia estudantes e preg
 - **Frontend:** React 19 + TypeScript + Vite
 - **Estilização:** Tailwind CSS 4
 - **Backend/Dados:** Firebase (Firestore + Auth)
-- **IA:** Google Gemini 1.5 Flash (via @google/genai)
+- **IA:** Google Gemini 3 Flash Preview (via @google/genai)
 - **Navegação:** React Router 7
 - **Animações:** Motion (framer-motion)
 

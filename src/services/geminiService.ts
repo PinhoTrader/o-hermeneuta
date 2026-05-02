@@ -1,10 +1,20 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { Study } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let aiClient: GoogleGenAI | null = null;
 const modelName = "gemini-3-flash-preview";
 
-const SYSTEM_INSTRUCTION = `Você é o Instrutor de IA do aplicativo "O Hermeneuta". 
+function getAiClient() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  aiClient ??= new GoogleGenAI({ apiKey });
+  return aiClient;
+}
+
+const MISSING_API_KEY_MESSAGE = "Configure a GEMINI_API_KEY no arquivo .env para ativar o Instrutor de IA em desenvolvimento.";
+
+const SYSTEM_INSTRUCTION = `Você é o Instrutor de IA do aplicativo "O Hermeneuta".
 Seu objetivo é guiar hermeneutas bíblicos em um treinamento prático e profundo baseado estritamente no método "Cavar & Descobrir".
 
 MISSÃO CRÍTICA:
@@ -42,14 +52,20 @@ Conteúdo do Texto: ${study.bibleSelection?.text}
 
 Progresso Atual:
 - Observações: ${study.observations || 'Nenhuma'}
-- Perguntas: ${study.questions?.map(q => q.content).join('; ') || 'Nenhuma'}
+- Perguntas: ${study.questionsText || study.questions?.map(q => q.content).join('; ') || 'Nenhuma'}
 - Gênero: ${study.genre || 'Não definido'}
 - Estrutura: ${study.structure || 'Não definida'}
-- Contexto: ${JSON.stringify(study.context) || 'Não definido'}
+- Contexto: ${study.contextText || JSON.stringify(study.context) || 'Não definido'}
 - Ideia Principal: ${study.mainIdea || 'Não definida'}
+- Intento Transformador: ${study.transformingIntent || 'Não definido'}
+- Esboço: ${study.sermonOutline || 'Não definido'}
+- Sermão: ${study.detailedSermon || 'Não definido'}
 `;
 
   const prompt = `Estou na etapa "${stage}". Analise meu progresso até agora e me dê um feedback sobre como estou indo e o que posso aprofundar nesta etapa, sem me dar a resposta final.`;
+
+  const ai = getAiClient();
+  if (!ai) return MISSING_API_KEY_MESSAGE;
 
   try {
     const response = await ai.models.generateContent({
@@ -71,11 +87,16 @@ Progresso Atual:
 }
 
 export async function askInstructor(question: string, study: Study) {
-    const context = `
+  const context = `
 Texto Bíblico: ${study.bibleSelection?.book} ${study.bibleSelection?.chapter}:${study.bibleSelection?.verseStart}-${study.bibleSelection?.verseEnd} (${study.bibleSelection?.translation})
 Conteúdo do Texto: ${study.bibleSelection?.text}
 Observações do Usuário: ${study.observations || 'Nenhuma'}
+Perguntas do Usuário: ${study.questionsText || 'Nenhuma'}
+Contexto do Usuário: ${study.contextText || 'Nenhum'}
 `;
+
+  const ai = getAiClient();
+  if (!ai) return MISSING_API_KEY_MESSAGE;
 
   try {
     const response = await ai.models.generateContent({
@@ -97,6 +118,9 @@ Observações do Usuário: ${study.observations || 'Nenhuma'}
 }
 
 export async function generalAIChat(message: string, history: { role: 'user' | 'model', content: string }[] = []) {
+  const ai = getAiClient();
+  if (!ai) return MISSING_API_KEY_MESSAGE;
+
   try {
     const response = await ai.models.generateContent({
       model: modelName,
