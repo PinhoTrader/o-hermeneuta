@@ -2,10 +2,13 @@ import { Study } from "../types";
 import { auth } from "../lib/firebase";
 
 const REQUEST_ERROR_MESSAGE = "Desculpe, estou com dificuldades para processar sua mensagem agora.";
+const SESSION_EXPIRED_MESSAGE = "Sua sessão expirou. Faça login novamente.";
 const GUEST_USER_KEY = 'guest_user';
 
 type GeminiAction = 'stageFeedback' | 'askInstructor' | 'generalChat';
 type ChatHistoryItem = { role: 'user' | 'model', content: string };
+
+class SessionTokenError extends Error {}
 
 function getGuestId() {
   try {
@@ -18,14 +21,18 @@ function getGuestId() {
   }
 }
 
-async function getRequestHeaders() {
+async function getRequestHeaders(forceRefresh = true) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
   const currentUser = auth.currentUser;
   if (currentUser) {
-    headers.Authorization = `Bearer ${await currentUser.getIdToken()}`;
+    try {
+      headers.Authorization = `Bearer ${await currentUser.getIdToken(forceRefresh)}`;
+    } catch (error) {
+      throw new SessionTokenError(error instanceof Error ? error.message : 'Token refresh failed');
+    }
     return headers;
   }
 
@@ -37,14 +44,44 @@ async function getRequestHeaders() {
   return headers;
 }
 
-async function callGeminiApi(action: GeminiAction, payload: unknown) {
+async function requestGemini(action: GeminiAction, payload: unknown, forceRefresh = true) {
   const response = await fetch('/api/gemini', {
     method: 'POST',
-    headers: await getRequestHeaders(),
+    headers: await getRequestHeaders(forceRefresh),
     body: JSON.stringify({ action, payload }),
   });
 
   const data = await response.json().catch(() => ({})) as { text?: string; error?: string };
+  return { response, data };
+}
+
+async function callGeminiApi(action: GeminiAction, payload: unknown) {
+  let response: Response;
+  let data: { text?: string; error?: string };
+
+  try {
+    ({ response, data } = await requestGemini(action, payload, true));
+  } catch (error) {
+    if (error instanceof SessionTokenError) {
+      return SESSION_EXPIRED_MESSAGE;
+    }
+    throw error;
+  }
+
+  if ((response.status === 401 || response.status === 403) && auth.currentUser) {
+    try {
+      ({ response, data } = await requestGemini(action, payload, true));
+    } catch (error) {
+      if (error instanceof SessionTokenError) {
+        return SESSION_EXPIRED_MESSAGE;
+      }
+      throw error;
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      return SESSION_EXPIRED_MESSAGE;
+    }
+  }
 
   if (!response.ok) {
     return data.error || REQUEST_ERROR_MESSAGE;

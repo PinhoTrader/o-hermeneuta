@@ -34,6 +34,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
@@ -63,6 +64,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
   }, [isOpen, profile, user]);
 
   useEffect(() => {
+    if (selectedGroup) setChatError(null);
     if (selectedGroup && selectedGroup.id !== 'ai-instructor') {
       const unsubscribe = subscribeToMessages(selectedGroup.id, 50, (newMsgs) => {
         setMessages(prev => {
@@ -70,6 +72,13 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
           const older = prev.filter(m => !existingIds.has(m.id));
           return [...older, ...newMsgs].sort((a, b) => a.timestamp - b.timestamp);
         });
+      }, (error) => {
+        setMessages([]);
+        setChatError(error.message);
+        if (error.code === 'permission-denied' || error.code === 'unauthenticated') {
+          setSelectedGroup(null);
+          setView('list');
+        }
       });
       return () => unsubscribe();
     } else if (selectedGroup?.id === 'ai-instructor') {
@@ -99,6 +108,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
     setView('list');
     setSelectedGroup(null);
     setMessages([]);
+    setChatError(null);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -214,6 +224,11 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
                   </div>
 
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 mb-2">Destaque</p>
+                  {chatError && (
+                    <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {chatError}
+                    </div>
+                  )}
                   
                   {/* AI Mentor is always first */}
                   <button
@@ -277,6 +292,12 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
                     ref={scrollRef}
                     className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30"
                   >
+                    {chatError && (
+                      <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+                        {chatError}
+                      </div>
+                    )}
+
                     {messages.map((msg, i) => {
                       const isOwn = msg.senderId === (profile?.uid || user?.uid || 'guest');
                       const isAi = msg.senderId === 'ai';

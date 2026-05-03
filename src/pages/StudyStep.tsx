@@ -133,12 +133,12 @@ export default function StudyStep({ title, field, description, placeholder, meth
             </div>
           )}
           <div className="flex items-center justify-between">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-primary/60">Texto de Referência</h4>
+            <h4 className="text-sm font-bold uppercase tracking-widest text-brand-primary/60">Texto de Referência</h4>
             <div className="relative">
               <select 
                 value={translation} 
                 onChange={(e) => setTranslation(e.target.value)}
-                className="text-[10px] font-bold pl-3 pr-8 py-1 rounded-full bg-brand-primary/10 text-brand-primary border border-brand-primary/20 outline-none cursor-pointer hover:bg-brand-primary/20 transition-all shadow-sm focus:ring-2 focus:ring-brand-primary/30 appearance-none"
+                className="text-xs font-bold pl-3 pr-8 py-1 rounded-full bg-brand-primary/10 text-brand-primary border border-brand-primary/20 outline-none cursor-pointer hover:bg-brand-primary/20 transition-all shadow-sm focus:ring-2 focus:ring-brand-primary/30 appearance-none"
               >
                 <option value="NVI">NVI</option>
                 <option value="NAA">NAA</option>
@@ -152,7 +152,7 @@ export default function StudyStep({ title, field, description, placeholder, meth
               </div>
             </div>
           </div>
-          <p className="text-sm font-serif leading-relaxed italic text-slate-700">
+          <p className="text-lg font-serif leading-relaxed italic text-slate-700">
              "{currentStudy?.bibleSelection?.text}" 
              <span className="ml-2 font-sans font-bold not-italic text-brand-primary">
                — {currentStudy?.bibleSelection?.book} {currentStudy?.bibleSelection?.chapter}:{currentStudy?.bibleSelection?.verseStart}-{currentStudy?.bibleSelection?.verseEnd}

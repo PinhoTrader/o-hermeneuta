@@ -24,6 +24,7 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -68,6 +69,7 @@ export default function GroupsPage() {
 
   useEffect(() => {
     setMessages([]);
+    if (selectedGroup) setChatError(null);
     setLastDoc(null);
     setHasMore(true);
 
@@ -80,6 +82,14 @@ export default function GroupsPage() {
           return [...older, ...newMsgs].sort((a, b) => a.timestamp - b.timestamp);
         });
         setLastDoc(prev => prev || doc); // Set lastDoc only on first load
+      }, (error) => {
+        setMessages([]);
+        setLastDoc(null);
+        setHasMore(false);
+        setChatError(error.message);
+        if (error.code === 'permission-denied' || error.code === 'unauthenticated') {
+          setSelectedGroup(null);
+        }
       });
       return () => unsubscribe();
     } else if (selectedGroup?.id === 'ai-instructor') {
@@ -561,6 +571,12 @@ export default function GroupsPage() {
               ref={scrollRef}
               className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-slate-50/50"
             >
+              {chatError && (
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {chatError}
+                </div>
+              )}
+
               {hasMore && selectedGroup.id !== 'ai-instructor' && (
                 <div className="flex justify-center pb-4">
                   <Button 
@@ -647,7 +663,7 @@ export default function GroupsPage() {
             <div className="text-center space-y-2">
               <h3 className="text-xl font-bold text-slate-800">Suas Salas Virtuais</h3>
               <p className="text-sm max-w-xs mx-auto">
-                Selecione uma sala ao lado para interagir com seu professor e colegas.
+                {chatError || 'Selecione uma sala ao lado para interagir com seu professor e colegas.'}
               </p>
             </div>
           </div>

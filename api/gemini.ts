@@ -47,6 +47,16 @@ type RequestIdentity = {
   dailyLimit: number;
 };
 
+type IdentityResult =
+  | { identity: RequestIdentity; error?: never }
+  | { identity: null; error: string };
+
+type JwtPayload = {
+  sub?: unknown;
+  user_id?: unknown;
+  exp?: unknown;
+};
+
 const modelName = 'gemini-3-flash-preview';
 const MISSING_API_KEY_MESSAGE =
   'O Instrutor de IA ainda não está configurado neste ambiente. Verifique a GEMINI_API_KEY no servidor.';
@@ -129,40 +139,50 @@ function getBearerToken(req: VercelRequest) {
   return header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
 }
 
-function decodeJwtSubject(token: string) {
+function decodeJwtPayload(token: string): JwtPayload | null {
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
     const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const decoded = JSON.parse(Buffer.from(normalized, 'base64').toString('utf8')) as { sub?: unknown; user_id?: unknown };
-    const subject = decoded.user_id || decoded.sub;
-    return typeof subject === 'string' && subject ? subject : null;
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as JwtPayload;
   } catch {
     return null;
   }
 }
 
-function getIdentity(req: VercelRequest): RequestIdentity | null {
+function getIdentity(req: VercelRequest): IdentityResult {
   const token = getBearerToken(req);
-  const tokenSubject = token ? decodeJwtSubject(token) : null;
-  if (tokenSubject) {
+  if (token) {
+    const payload = decodeJwtPayload(token);
+    const expiresAt = typeof payload?.exp === 'number' ? payload.exp : 0;
+    const subject = payload?.user_id || payload?.sub;
+
+    if (!payload || !expiresAt || expiresAt * 1000 <= Date.now() || typeof subject !== 'string' || !subject) {
+      return { identity: null, error: 'Sua sessão expirou. Faça login novamente.' };
+    }
+
     return {
-      id: `user:${tokenSubject}`,
-      kind: 'user',
-      dailyLimit: MAX_USER_REQUESTS_PER_DAY,
+      identity: {
+        id: `user:${subject}`,
+        kind: 'user',
+        dailyLimit: MAX_USER_REQUESTS_PER_DAY,
+      },
     };
   }
 
   const guestId = req.headers['x-hermeneuta-guest-id'];
   if (typeof guestId === 'string' && /^guest_[a-zA-Z0-9_-]{4,64}$/.test(guestId)) {
     return {
-      id: `guest:${guestId}`,
-      kind: 'guest',
-      dailyLimit: MAX_GUEST_REQUESTS_PER_DAY,
+      identity: {
+        id: `guest:${guestId}`,
+        kind: 'guest',
+        dailyLimit: MAX_GUEST_REQUESTS_PER_DAY,
+      },
     };
   }
 
-  return null;
+  return { identity: null, error: 'Identificação necessária para usar o Instrutor de IA.' };
 }
 
 function getTodayKey() {
@@ -362,9 +382,9 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
   }
 
   try {
-    const identity = getIdentity(req);
+    const { identity, error: identityError } = getIdentity(req);
     if (!identity) {
-      sendJson(res, 401, { error: 'Identificação necessária para usar o Instrutor de IA.' });
+      sendJson(res, 401, { error: identityError });
       return;
     }
 

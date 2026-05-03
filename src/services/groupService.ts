@@ -30,6 +30,31 @@ enum OperationType {
   WRITE = 'write',
 }
 
+export type MessageSubscriptionError = {
+  code: string;
+  message: string;
+};
+
+function getFirestoreErrorCode(error: unknown) {
+  return typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : '';
+}
+
+function getMessageSubscriptionError(error: unknown): MessageSubscriptionError {
+  const code = getFirestoreErrorCode(error);
+
+  if (code === 'permission-denied' || code === 'unauthenticated') {
+    return {
+      code,
+      message: 'Sua sessão ou permissão para esta sala expirou. Entre novamente ou peça um novo convite.',
+    };
+  }
+
+  return {
+    code: code || 'unknown',
+    message: 'Não conseguimos carregar as mensagens desta sala agora. Tente novamente em instantes.',
+  };
+}
+
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -132,7 +157,8 @@ export async function listUserGroups(userId: string, role: string): Promise<Grou
 export function subscribeToMessages(
   groupId: string, 
   messageLimit: number,
-  callback: (messages: Message[], lastDoc: QueryDocumentSnapshot<DocumentData> | null) => void
+  callback: (messages: Message[], lastDoc: QueryDocumentSnapshot<DocumentData> | null) => void,
+  onError?: (error: MessageSubscriptionError) => void
 ) {
   const path = `groups/${groupId}/messages`;
   // We order by timestamp DESC to get the latest ones first with a limit
@@ -156,7 +182,12 @@ export function subscribeToMessages(
     const lastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
     callback(messages, lastDoc);
   }, (error) => {
-    handleFirestoreError(error, OperationType.LIST, path);
+    console.error('Firestore message subscription error:', {
+      code: getFirestoreErrorCode(error),
+      path,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    onError?.(getMessageSubscriptionError(error));
   });
 }
 

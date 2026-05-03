@@ -39,6 +39,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const GUEST_USER_KEY = 'guest_user';
+const AUTH_HEARTBEAT_MS = 15 * 60 * 1000;
 
 function getFriendlyAuthError(error: unknown) {
   const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : '';
@@ -206,6 +207,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const heartbeat = window.setInterval(async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      try {
+        await currentUser.getIdToken(true);
+      } catch (error) {
+        console.error('Auth heartbeat failed:', error);
+        localStorage.removeItem(GUEST_USER_KEY);
+        setUser(null);
+        setProfile(null);
+        setAuthError('Sua sessão expirou. Faça login novamente para continuar.');
+      }
+    }, AUTH_HEARTBEAT_MS);
+
+    return () => window.clearInterval(heartbeat);
   }, []);
 
   const clearAuthError = () => setAuthError(null);
