@@ -33,11 +33,13 @@ O aplicativo guia o usuário por um processo de 8 etapas fundamentais:
 - Projeto Firebase configurado
 
 ### Variáveis de Ambiente
-Crie um arquivo `.env` baseado no `.env.example`:
+Crie um arquivo `.env` baseado no `.env.example` para desenvolvimento local:
 ```env
 GEMINI_API_KEY="sua_chave_aqui"
 APP_URL="url_do_app"
 ```
+
+`GEMINI_API_KEY` é usada apenas pela rota serverless `/api/gemini`; ela não deve ser exposta no frontend. Em produção, configure essa variável no painel da Vercel em **Project Settings > Environment Variables** e marque o ambiente **Production** antes de fazer o deploy. Para testar o Instrutor de IA localmente com a rota serverless, prefira rodar o app com `vercel dev`.
 
 ### Comandos Principais
 - `npm install`: Instala as dependências.
