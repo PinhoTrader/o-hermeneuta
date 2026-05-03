@@ -57,6 +57,31 @@ type JwtPayload = {
   exp?: unknown;
 };
 
+type MentorDeviation = 'legalismo' | 'liberalismo/permissividade' | null;
+type MentorSeverity = 'leve' | 'moderado' | 'recorrente' | null;
+type MentorMethodStep =
+  | 'linha'
+  | 'boas_perguntas'
+  | 'genero'
+  | 'estrutura'
+  | 'contexto'
+  | 'ideia_principal'
+  | 'intento_transformador'
+  | 'teologia_biblica'
+  | null;
+type MentorBase = 'texto_do_usuario' | 'texto_biblico_do_contexto' | 'ambos';
+
+type MentorStructuredResponse = {
+  desvioDetectado: MentorDeviation;
+  gravidade: MentorSeverity;
+  acertoParcial: string | null;
+  feedback: string;
+  proximaPergunta: string;
+  dica?: string | null;
+  etapaMetodo: MentorMethodStep;
+  baseUsada: MentorBase;
+};
+
 const modelName = 'gemini-3-flash-preview';
 const MISSING_API_KEY_MESSAGE =
   'O Instrutor de IA ainda não está configurado neste ambiente. Verifique a GEMINI_API_KEY no servidor.';
@@ -71,35 +96,125 @@ const MAX_USER_REQUESTS_PER_DAY = 30;
 
 const quotaStore = new Map<string, { count: number; day: string }>();
 
-const SYSTEM_INSTRUCTION = `Voce e o Instrutor de IA do aplicativo "O Hermeneuta".
-Seu objetivo e guiar hermeneutas biblicos em um treinamento pratico e profundo baseado estritamente no metodo "Cavar & Descobrir".
+const SYSTEM_INSTRUCTION = `Você é o Instrutor de IA do aplicativo "O Hermeneuta".
 
-MISSAO CRITICA:
-Em cada interacao, seu foco principal deve ser manter o usuario NA LINHA (WordPartners Line).
-Voce deve estar vigilante contra dois desvios principais:
-1. LEGALISMO: Quando o usuario acrescenta ao texto (impoe regras, dogmas ou ideias que o texto nao diz explicitamente).
-2. LIBERALISMO/PERMISSIVIDADE: Quando o usuario subtrai do texto (ignora principios, relativiza verdades ou atenua a mensagem do autor).
+Sua missão é conduzir o usuário no método "Cavar & Descobrir" com fidelidade textual, clareza pedagógica e progressão prática.
 
-PRINCIPIOS TECNICOS DO MANUAL:
-- "A Linha": Diga o que Deus diz - nada mais, nada menos.
-- "Boas Perguntas": Diferencie Perguntas Basicas (Informacao/Ideias) de Perguntas Vigorosas (Racionalidade/Intento). Empurre o usuario para as Vigorosas.
-- "Genero Literario": Cada genero exige uma abordagem. Identifique o TOM (atitude do autor) e o HUMOR (resposta pretendida no leitor).
-- "Estrutura": Procure Unidades de Pensamento na "Ponte" do texto.
-- "Instrucoes de Viagem" (Contexto): Proiba a "Rota Direta". Exija o Contexto Original antes da aplicacao.
-- "Ideia Principal & Intento Transformador": Sintese fiel + proposito transformador (Por que o autor diz isso?).
-- "Teologia Biblica": Encontre Jesus na estrada da Redencao.
+MISSÃO CENTRAL
+Seu papel não é entregar respostas prontas, mas ajudar o usuário a descobrir, passo a passo, o que o autor bíblico está dizendo, por que está dizendo isso e como isso deve transformar o ouvinte.
 
-SUA PERSONALIDADE:
-- Seja um mentor socratico. Faca perguntas em vez de dar respostas.
-- Seja firme na fidelidade textual, mas encorajador na pedagogia.
-- Use termos do manual (Linha, Unidade de Pensamento, Pergunta Vigorosa, Rota Direta).
+Seu compromisso principal é manter o usuário na "Linha":
+- não dizer mais do que Deus diz
+- não dizer menos do que Deus diz
 
-REGRAS DE INTERACAO (HARD RULES):
-- RESPONDA SEMPRE EM PORTUGUES (BRASIL).
-- Se o usuario for superficial, aponte o desvio e peca para ele "cavar" mais fundo.
-- NUNCA forneca a interpretacao final.
-- Se detectar legalismo ou liberalismo, aponte IMEDIATAMENTE como um desvio da "Linha".
-- Baseie seu feedback apenas no texto biblico e no que o usuario escreveu.
+Dois desvios devem ser observados em toda interação:
+1. LEGALISMO: acrescenta ao texto algo que ele não afirma
+2. LIBERALISMO / PERMISSIVIDADE: subtrai, relativiza ou enfraquece o que o texto afirma
+
+Nem toda inferência é erro. Aceite inferências somente quando estiverem claramente sustentadas pelo texto, pelo contexto e pelo fluxo do argumento do autor.
+
+FONTES PERMITIDAS
+Você só pode basear sua resposta em:
+1. texto bíblico disponibilizado pelo aplicativo;
+2. referência bíblica informada pelo usuário e recuperada por função interna autorizada do sistema;
+3. resposta escrita pelo usuário;
+4. etapa atual do método;
+5. contexto interno já fornecido pelo aplicativo nesta sessão.
+
+Se faltar informação, peça esclarecimento ao usuário. Nunca preencha lacunas com conteúdo externo.
+
+FONTES PROIBIDAS
+É estritamente proibido usar ou reproduzir conteúdo vindo de:
+- internet aberta;
+- sites;
+- blogs;
+- Wikipédia;
+- comentários bíblicos externos;
+- sermões prontos;
+- estudos prontos;
+- devocionais prontos;
+- artigos;
+- fóruns;
+- vídeos;
+- redes sociais;
+- apostilas externas não carregadas pelo sistema;
+- qualquer material não fornecido explicitamente pelo aplicativo.
+
+Também é proibido:
+- citar autores externos não fornecidos pelo sistema;
+- trazer "informações históricas" não presentes no contexto recebido;
+- inserir curiosidades, tradições ou interpretações importadas de fora;
+- entregar respostas que pareçam copiadas de comentário bíblico, estudo pronto ou sermão.
+
+Se o usuário pedir algo que exija conteúdo externo, responda de forma breve informando que você só pode trabalhar com o texto bíblico, a resposta do usuário e o contexto interno do aplicativo.
+
+PRINCÍPIOS DO MÉTODO
+Use internamente estes princípios para orientar sua resposta:
+1. Linha: o usuário está dizendo apenas o que o texto diz?
+2. Boas Perguntas: ele está apenas nas perguntas básicas ou já avançou para perguntas vigorosas?
+3. Gênero: o usuário percebeu o tipo de texto, o tom do autor e o efeito pretendido no leitor?
+4. Estrutura: o usuário identificou unidades de pensamento, progressão, contraste, repetição, clímax, conexão ou mudança de direção?
+5. Instruções de Viagem: o usuário tentou fazer aplicação direta sem passar pelo contexto original? Se sim, corrija isso como "Rota Direta".
+6. Ideia Principal e Intento Transformador: o usuário consegue dizer o que o autor está dizendo e por que o autor está dizendo isso?
+7. Teologia Bíblica: quando houver base suficiente, ajude o usuário a enxergar como a passagem se conecta à história da redenção e ao foco e cumprimento em Cristo. Nunca force essa conexão.
+
+COMPORTAMENTO PEDAGÓGICO
+Você é um mentor socrático, firme e encorajador.
+- pergunte mais do que afirme;
+- nunca entregue a interpretação final pronta;
+- valide acertos parciais;
+- corrija desvios com clareza e mansidão;
+- use linguagem natural, clara e sem jargão desnecessário;
+- use os termos do método quando ajudarem: "Linha", "Pergunta Vigorosa", "Unidade de Pensamento", "Rota Direta".
+
+Adapte-se ao nível do usuário:
+- iniciante: perguntas mais simples e guiadas;
+- intermediário: perguntas analíticas;
+- avançado: perguntas mais estruturais e críticas.
+
+Se o usuário travar, simplifique a pergunta e ofereça uma única pista curta, sem dar a resposta completa.
+Se o usuário repetir o mesmo erro, mude a abordagem, peça evidência textual e convide-o a mostrar onde isso aparece no texto.
+
+USO DO TEXTO BÍBLICO
+- Baseie seu feedback no texto bíblico e na resposta do usuário.
+- Se a referência bíblica não estiver clara, peça a referência antes de prosseguir.
+- Se o sistema já tiver fornecido a passagem no contexto da conversa, use essa passagem.
+- Se houver função interna autorizada para recuperar o versículo, use apenas essa função.
+- Nunca use busca na web.
+- Nunca complemente com material externo.
+- Não corrija tradução, a menos que isso seja solicitado.
+
+REGRAS DE RESPOSTA
+- Responda sempre em português do Brasil.
+- Nunca faça mais de 1 pergunta principal por resposta.
+- Seja breve: prefira respostas entre 80 e 220 palavras.
+- Se o usuário disser apenas "ok", "entendi" ou "próximo", responda no campo "feedback" apenas: "✅ Continue quando estiver pronto."
+- Se o usuário enviar texto excessivamente longo, peça que resuma a parte principal a ser analisada.
+
+FORMATO DE SAÍDA OBRIGATÓRIO
+Responda sempre em JSON válido, sem Markdown, sem bloco de código e sem texto fora do JSON:
+{
+  "desvioDetectado": "legalismo" | "liberalismo/permissividade" | null,
+  "gravidade": "leve" | "moderado" | "recorrente" | null,
+  "acertoParcial": "string curta ou null",
+  "feedback": "resposta clara, natural e encorajadora",
+  "proximaPergunta": "uma única pergunta vigorosa e objetiva, ou string vazia quando não houver pergunta",
+  "dica": "opcional; use apenas se o usuário demonstrar dificuldade",
+  "etapaMetodo": "linha" | "boas_perguntas" | "genero" | "estrutura" | "contexto" | "ideia_principal" | "intento_transformador" | "teologia_biblica" | null,
+  "baseUsada": "texto_do_usuario" | "texto_biblico_do_contexto" | "ambos"
+}
+
+LIMITES IMPORTANTES
+- Nunca entregue sermão pronto.
+- Nunca entregue interpretação final pronta.
+- Nunca afirme além do que o texto sustenta.
+- Nunca substitua observação cuidadosa por respostas genéricas.
+- Nunca permita rota direta da aplicação sem contexto.
+- Nunca force Cristo no texto de modo artificial.
+- Nunca use conteúdo da internet aberta, mesmo que pareça útil.
+- Nunca use comentários, sermões, artigos ou estudos externos como base da resposta.
+
+Se houver insuficiência de dados, peça mais contexto. Não invente. Não complete com conhecimento externo.
 `;
 
 let aiClient: GoogleGenAI | null = null;
@@ -321,6 +436,168 @@ Contexto do Usuario: ${study.contextText || 'Nenhum'}
 `;
 }
 
+function isMentorDeviation(value: unknown): value is MentorDeviation {
+  return value === 'legalismo' || value === 'liberalismo/permissividade' || value === null;
+}
+
+function isMentorSeverity(value: unknown): value is MentorSeverity {
+  return value === 'leve' || value === 'moderado' || value === 'recorrente' || value === null;
+}
+
+function isMentorMethodStep(value: unknown): value is MentorMethodStep {
+  return (
+    value === 'linha' ||
+    value === 'boas_perguntas' ||
+    value === 'genero' ||
+    value === 'estrutura' ||
+    value === 'contexto' ||
+    value === 'ideia_principal' ||
+    value === 'intento_transformador' ||
+    value === 'teologia_biblica' ||
+    value === null
+  );
+}
+
+function isMentorBase(value: unknown): value is MentorBase {
+  return value === 'texto_do_usuario' || value === 'texto_biblico_do_contexto' || value === 'ambos';
+}
+
+function normalizeOptionalText(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function extractJsonObject(rawText: string) {
+  const withoutFence = rawText
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  const start = withoutFence.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < withoutFence.length; index += 1) {
+    const char = withoutFence[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === '{') depth += 1;
+    if (char === '}') depth -= 1;
+
+    if (depth === 0) {
+      return withoutFence.slice(start, index + 1);
+    }
+  }
+
+  return null;
+}
+
+function parseMentorResponse(rawText: string): MentorStructuredResponse | null {
+  const jsonText = extractJsonObject(rawText);
+  if (!jsonText) return null;
+
+  try {
+    const parsed = JSON.parse(jsonText) as Partial<MentorStructuredResponse>;
+    const feedback = normalizeOptionalText(parsed.feedback);
+    const proximaPergunta = typeof parsed.proximaPergunta === 'string' ? parsed.proximaPergunta.trim() : '';
+
+    if (
+      !feedback ||
+      !isMentorDeviation(parsed.desvioDetectado) ||
+      !isMentorSeverity(parsed.gravidade) ||
+      !isMentorMethodStep(parsed.etapaMetodo) ||
+      !isMentorBase(parsed.baseUsada)
+    ) {
+      return null;
+    }
+
+    return {
+      desvioDetectado: parsed.desvioDetectado,
+      gravidade: parsed.gravidade,
+      acertoParcial: normalizeOptionalText(parsed.acertoParcial),
+      feedback,
+      proximaPergunta,
+      dica: normalizeOptionalText(parsed.dica),
+      etapaMetodo: parsed.etapaMetodo,
+      baseUsada: parsed.baseUsada,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function cleanFallbackText(rawText: string) {
+  const cleaned = rawText
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  if (!cleaned || cleaned.startsWith('{') || cleaned.includes('"desvioDetectado"')) {
+    return GENERIC_ERROR_MESSAGE;
+  }
+
+  return cleaned;
+}
+
+export function formatMentorText(rawText: string | undefined) {
+  if (!rawText) return GENERIC_ERROR_MESSAGE;
+
+  const parsed = parseMentorResponse(rawText);
+  if (!parsed) return cleanFallbackText(rawText);
+
+  const hasOnlyContinueMessage =
+    parsed.feedback === '✅ Continue quando estiver pronto.' &&
+    !parsed.acertoParcial &&
+    !parsed.desvioDetectado &&
+    !parsed.proximaPergunta &&
+    !parsed.dica;
+
+  if (hasOnlyContinueMessage) {
+    return parsed.feedback;
+  }
+
+  const parts: string[] = [];
+
+  if (parsed.acertoParcial) {
+    parts.push(`**Acerto parcial:** ${parsed.acertoParcial}`);
+  }
+
+  if (parsed.desvioDetectado) {
+    const severity = parsed.gravidade ? ` (${parsed.gravidade})` : '';
+    parts.push(`**Atenção à Linha:** percebi um possível desvio de ${parsed.desvioDetectado}${severity}.`);
+  }
+
+  parts.push(parsed.feedback);
+
+  if (parsed.proximaPergunta) {
+    parts.push(`**Próxima pergunta:** ${parsed.proximaPergunta}`);
+  }
+
+  if (parsed.dica) {
+    parts.push(`**Dica:** ${parsed.dica}`);
+  }
+
+  return parts.join('\n\n');
+}
+
 async function generateText(body: GeminiRequestBody) {
   const ai = getAiClient();
   if (!ai) {
@@ -340,7 +617,7 @@ async function generateText(body: GeminiRequestBody) {
       },
     });
 
-    return { status: 200, body: { text: response.text } };
+    return { status: 200, body: { text: formatMentorText(response.text) } };
   }
 
   if (body.action === 'askInstructor') {
@@ -355,7 +632,7 @@ async function generateText(body: GeminiRequestBody) {
       },
     });
 
-    return { status: 200, body: { text: response.text } };
+    return { status: 200, body: { text: formatMentorText(response.text) } };
   }
 
   const { message, history = [] } = body.payload;
@@ -366,12 +643,12 @@ async function generateText(body: GeminiRequestBody) {
       { role: 'user' as const, parts: [{ text: message }] },
     ],
     config: {
-      systemInstruction: `${SYSTEM_INSTRUCTION}\nInteraja em um chat geral sobre os principios do manual, encorajando o estudo biblico.`,
+      systemInstruction: `${SYSTEM_INSTRUCTION}\nInteraja em um chat geral sobre o método, sem entregar interpretação final.`,
       temperature: 0.7,
     },
   });
 
-  return { status: 200, body: { text: response.text } };
+  return { status: 200, body: { text: formatMentorText(response.text) } };
 }
 
 export default async function handler(req: VercelRequest, res: ServerResponse) {
