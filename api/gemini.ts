@@ -35,12 +35,31 @@ type GeminiRequestBody =
 type VercelRequest = IncomingMessage & {
   method?: string;
   body?: unknown;
+  headers: IncomingMessage['headers'] & {
+    authorization?: string;
+    'x-hermeneuta-guest-id'?: string;
+  };
+};
+
+type RequestIdentity = {
+  id: string;
+  kind: 'guest' | 'user';
+  dailyLimit: number;
 };
 
 const modelName = 'gemini-3-flash-preview';
 const MISSING_API_KEY_MESSAGE =
   'O Instrutor de IA ainda não está configurado neste ambiente. Verifique a GEMINI_API_KEY no servidor.';
 const GENERIC_ERROR_MESSAGE = 'Desculpe, estou com dificuldades para processar sua mensagem agora.';
+const QUOTA_ERROR_MESSAGE = 'Você atingiu o limite diário do Instrutor de IA. Tente novamente amanhã.';
+
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_CONTEXT_FIELD_LENGTH = 12000;
+const MAX_HISTORY_ITEMS = 6;
+const MAX_GUEST_REQUESTS_PER_DAY = 5;
+const MAX_USER_REQUESTS_PER_DAY = 30;
+
+const quotaStore = new Map<string, { count: number; day: string }>();
 
 const SYSTEM_INSTRUCTION = `Voce e o Instrutor de IA do aplicativo "O Hermeneuta".
 Seu objetivo e guiar hermeneutas biblicos em um treinamento pratico e profundo baseado estritamente no metodo "Cavar & Descobrir".
@@ -105,6 +124,155 @@ function isAction(value: unknown): value is GeminiAction {
   return value === 'stageFeedback' || value === 'askInstructor' || value === 'generalChat';
 }
 
+function getBearerToken(req: VercelRequest) {
+  const header = req.headers.authorization || '';
+  return header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
+}
+
+function decodeJwtSubject(token: string) {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = JSON.parse(Buffer.from(normalized, 'base64').toString('utf8')) as { sub?: unknown; user_id?: unknown };
+    const subject = decoded.user_id || decoded.sub;
+    return typeof subject === 'string' && subject ? subject : null;
+  } catch {
+    return null;
+  }
+}
+
+function getIdentity(req: VercelRequest): RequestIdentity | null {
+  const token = getBearerToken(req);
+  const tokenSubject = token ? decodeJwtSubject(token) : null;
+  if (tokenSubject) {
+    return {
+      id: `user:${tokenSubject}`,
+      kind: 'user',
+      dailyLimit: MAX_USER_REQUESTS_PER_DAY,
+    };
+  }
+
+  const guestId = req.headers['x-hermeneuta-guest-id'];
+  if (typeof guestId === 'string' && /^guest_[a-zA-Z0-9_-]{4,64}$/.test(guestId)) {
+    return {
+      id: `guest:${guestId}`,
+      kind: 'guest',
+      dailyLimit: MAX_GUEST_REQUESTS_PER_DAY,
+    };
+  }
+
+  return null;
+}
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function reserveQuota(identity: RequestIdentity) {
+  const day = getTodayKey();
+  const current = quotaStore.get(identity.id);
+  const nextCount = current?.day === day ? current.count + 1 : 1;
+
+  if (nextCount > identity.dailyLimit) {
+    return false;
+  }
+
+  quotaStore.set(identity.id, { count: nextCount, day });
+  return true;
+}
+
+function truncateText(value: unknown, maxLength = MAX_CONTEXT_FIELD_LENGTH) {
+  if (typeof value !== 'string') return '';
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+}
+
+function sanitizeStudy(study: Study): Study {
+  return {
+    ...study,
+    title: truncateText(study.title, 200),
+    bibleSelection: study.bibleSelection
+      ? {
+          ...study.bibleSelection,
+          book: truncateText(study.bibleSelection.book, 80),
+          translation: truncateText(study.bibleSelection.translation, 16),
+          text: truncateText(study.bibleSelection.text),
+        }
+      : undefined,
+    observations: truncateText(study.observations),
+    questionsText: truncateText(study.questionsText),
+    genre: truncateText(study.genre, 100),
+    structure: truncateText(study.structure),
+    contextText: truncateText(study.contextText),
+    mainIdea: truncateText(study.mainIdea, 1000),
+    transformingIntent: truncateText(study.transformingIntent, 1000),
+    sermonOutline: truncateText(study.sermonOutline),
+    detailedSermon: truncateText(study.detailedSermon),
+  };
+}
+
+function validateBody(body: Partial<GeminiRequestBody>) {
+  if (!isAction(body.action) || !body.payload) {
+    return 'Pedido inválido para o Instrutor de IA.';
+  }
+
+  if (body.action === 'stageFeedback') {
+    const payload = body.payload as Partial<Extract<GeminiRequestBody, { action: 'stageFeedback' }>['payload']>;
+    if (typeof payload.stage !== 'string' || !payload.stage.trim() || !payload.study) {
+      return 'Dados de estudo inválidos para revisão com IA.';
+    }
+  }
+
+  if (body.action === 'askInstructor') {
+    const payload = body.payload as Partial<Extract<GeminiRequestBody, { action: 'askInstructor' }>['payload']>;
+    if (typeof payload.question !== 'string' || !payload.question.trim() || payload.question.length > MAX_MESSAGE_LENGTH || !payload.study) {
+      return 'Pergunta inválida para o Instrutor de IA.';
+    }
+  }
+
+  if (body.action === 'generalChat') {
+    const payload = body.payload as Partial<Extract<GeminiRequestBody, { action: 'generalChat' }>['payload']>;
+    if (typeof payload.message !== 'string' || !payload.message.trim() || payload.message.length > MAX_MESSAGE_LENGTH) {
+      return 'Mensagem inválida para o Instrutor de IA.';
+    }
+  }
+
+  return null;
+}
+
+function normalizeBody(body: GeminiRequestBody): GeminiRequestBody {
+  if (body.action === 'stageFeedback') {
+    return {
+      action: body.action,
+      payload: {
+        stage: truncateText(body.payload.stage, 100),
+        study: sanitizeStudy(body.payload.study),
+      },
+    };
+  }
+
+  if (body.action === 'askInstructor') {
+    return {
+      action: body.action,
+      payload: {
+        question: truncateText(body.payload.question, MAX_MESSAGE_LENGTH),
+        study: sanitizeStudy(body.payload.study),
+      },
+    };
+  }
+
+  return {
+    action: body.action,
+    payload: {
+      message: truncateText(body.payload.message, MAX_MESSAGE_LENGTH),
+      history: (body.payload.history || [])
+        .slice(-MAX_HISTORY_ITEMS)
+        .filter(h => (h.role === 'user' || h.role === 'model') && typeof h.content === 'string')
+        .map(h => ({ role: h.role, content: truncateText(h.content, MAX_MESSAGE_LENGTH) })),
+    },
+  };
+}
+
 function getStudyContext(study: Study) {
   return `
 Texto Biblico: ${study.bibleSelection?.book} ${study.bibleSelection?.chapter}:${study.bibleSelection?.verseStart}-${study.bibleSelection?.verseEnd} (${study.bibleSelection?.translation})
@@ -135,7 +303,9 @@ Contexto do Usuario: ${study.contextText || 'Nenhum'}
 
 async function generateText(body: GeminiRequestBody) {
   const ai = getAiClient();
-  if (!ai) return MISSING_API_KEY_MESSAGE;
+  if (!ai) {
+    return { status: 503, body: { error: MISSING_API_KEY_MESSAGE } };
+  }
 
   if (body.action === 'stageFeedback') {
     const { stage, study } = body.payload;
@@ -150,7 +320,7 @@ async function generateText(body: GeminiRequestBody) {
       },
     });
 
-    return response.text;
+    return { status: 200, body: { text: response.text } };
   }
 
   if (body.action === 'askInstructor') {
@@ -165,7 +335,7 @@ async function generateText(body: GeminiRequestBody) {
       },
     });
 
-    return response.text;
+    return { status: 200, body: { text: response.text } };
   }
 
   const { message, history = [] } = body.payload;
@@ -181,7 +351,7 @@ async function generateText(body: GeminiRequestBody) {
     },
   });
 
-  return response.text;
+  return { status: 200, body: { text: response.text } };
 }
 
 export default async function handler(req: VercelRequest, res: ServerResponse) {
@@ -192,15 +362,27 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
   }
 
   try {
-    const body = (await readBody(req)) as Partial<GeminiRequestBody>;
-
-    if (!isAction(body.action) || !body.payload) {
-      sendJson(res, 400, { error: 'Pedido inválido para o Instrutor de IA.' });
+    const identity = getIdentity(req);
+    if (!identity) {
+      sendJson(res, 401, { error: 'Identificação necessária para usar o Instrutor de IA.' });
       return;
     }
 
-    const text = await generateText(body as GeminiRequestBody);
-    sendJson(res, 200, { text });
+    const rawBody = (await readBody(req)) as Partial<GeminiRequestBody>;
+    const validationError = validateBody(rawBody);
+    if (validationError) {
+      sendJson(res, 400, { error: validationError });
+      return;
+    }
+
+    if (!reserveQuota(identity)) {
+      sendJson(res, 429, { error: QUOTA_ERROR_MESSAGE });
+      return;
+    }
+
+    const normalizedBody = normalizeBody(rawBody as GeminiRequestBody);
+    const result = await generateText(normalizedBody);
+    sendJson(res, result.status, result.body);
   } catch (error) {
     console.error('Gemini API route error:', error);
     sendJson(res, 500, { error: GENERIC_ERROR_MESSAGE });

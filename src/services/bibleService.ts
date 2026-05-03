@@ -6,6 +6,10 @@ const VERSION_MAPPING: Record<string, string> = {
   'NAA': 'naa'
 };
 
+const LOCAL_BIBLE_ASSETS: Record<string, string> = {
+  ARC: new URL('../assets/biblia_arc.json', import.meta.url).href,
+};
+
 const BOOK_MAPPING: Record<string, string> = {
   'Gênesis': 'gn',
   'Êxodo': 'ex',
@@ -160,7 +164,9 @@ async function getThiagoBodrukFallback(book: string, chapter: number, verseStart
 
 async function getLocalBibleText(translation: string, book: string, chapter: number, verseStart: number, verseEnd: number) {
   try {
-    const response = await fetch(`/src/assets/biblia_${translation.toLowerCase()}.json`);
+    const assetUrl = LOCAL_BIBLE_ASSETS[translation.toUpperCase()];
+    if (!assetUrl) throw new Error('Local asset not configured');
+    const response = await fetch(assetUrl);
     if (!response.ok) throw new Error('Local asset not found');
     const data = await response.json();
     

@@ -82,17 +82,46 @@ export async function listUserGroups(userId: string, role: string): Promise<Grou
         where('userId', '==', userId)
       );
       const snapshot = await getDocs(q);
+
+      const denormalizedGroups = snapshot.docs
+        .map(memberDoc => {
+          const data = memberDoc.data();
+          if (
+            typeof data.groupId === 'string' &&
+            typeof data.groupName === 'string' &&
+            typeof data.professorId === 'string'
+          ) {
+            return {
+              id: data.groupId,
+              name: data.groupName,
+              professorId: data.professorId,
+              createdAt: data.groupCreatedAt || data.joinedAt || Date.now(),
+            } as Group;
+          }
+          return null;
+        })
+        .filter((group): group is Group => group !== null);
+
+      if (denormalizedGroups.length === snapshot.docs.length) {
+        return denormalizedGroups;
+      }
       
-      const groupRequests = snapshot.docs.map(mDoc => {
+      const groupRequests = snapshot.docs
+        .filter(mDoc => {
+          const data = mDoc.data();
+          return !(typeof data.groupId === 'string' && typeof data.groupName === 'string');
+        })
+        .map(mDoc => {
         const groupRef = mDoc.ref.parent.parent;
         if (!groupRef) return null;
         return getDoc(groupRef);
       });
       
       const groupSnaps = await Promise.all(groupRequests.filter(r => r !== null) as Promise<any>[]);
-      return groupSnaps
+      const legacyGroups = groupSnaps
         .filter(snap => snap.exists())
         .map(snap => ({ id: snap.id, ...snap.data() } as Group));
+      return [...denormalizedGroups, ...legacyGroups];
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
@@ -187,10 +216,16 @@ export async function joinGroup(groupId: string, studentId: string) {
       throw new Error('A sala com este ID não foi encontrada.');
     }
 
+    const groupData = groupSnap.data();
+
     // Use a subcollection for members instead of arrayUnion
     const memberRef = doc(db, 'groups', groupId, 'members', studentId);
     await setDoc(memberRef, {
       userId: studentId,
+      groupId,
+      groupName: groupData.name,
+      professorId: groupData.professorId,
+      groupCreatedAt: groupData.createdAt || null,
       joinedAt: serverTimestamp(),
       role: 'student'
     });

@@ -36,6 +36,7 @@ export default function Dashboard() {
   const [studyToDelete, setStudyToDelete] = useState<Study | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -70,18 +71,20 @@ export default function Dashboard() {
 
   const handleUpdateStudy = async () => {
     if (!editingStudy || !editTitle.trim()) return;
+    setActionError(null);
     try {
       await updateStudy(editingStudy.id, { title: editTitle });
       setStudies(studies.map(s => s.id === editingStudy.id ? { ...s, title: editTitle } : s));
       setEditingStudy(null);
     } catch (error) {
       console.error(error);
-      alert('Erro ao atualizar estudo.');
+      setActionError('Erro ao atualizar estudo. Tente novamente.');
     }
   };
 
   const handleDeleteStudy = async (id: string) => {
     setActionLoading(id);
+    setActionError(null);
     try {
       if (id.startsWith('local_')) {
         localStorage.removeItem(`guest_study_${id}`);
@@ -92,12 +95,19 @@ export default function Dashboard() {
       setMenuOpenId(null);
     } catch (error) {
       console.error(error);
-      alert('Erro ao excluir estudo. Verifique sua conexão.');
+      setActionError('Erro ao excluir estudo. Verifique sua conexao.');
     } finally {
       setActionLoading(null);
       setStudyToDelete(null);
     }
   };
+
+  const escapeHtml = (value: unknown) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 
   const handlePrint = (e: React.MouseEvent, study: Study) => {
     e.stopPropagation();
@@ -107,7 +117,7 @@ export default function Dashboard() {
       printWindow.document.write(`
         <html>
           <head>
-            <title>${study.title} - Estudo Bíblico</title>
+            <title>${escapeHtml(study.title)} - Estudo Bíblico</title>
             <style>
               body { font-family: sans-serif; padding: 40px; line-height: 1.6; }
               h1 { border-bottom: 2px solid #ccc; padding-bottom: 10px; }
@@ -117,14 +127,14 @@ export default function Dashboard() {
             </style>
           </head>
           <body>
-            <h1>${study.title}</h1>
+            <h1>${escapeHtml(study.title)}</h1>
             <div class="section">
               <span class="label">Texto Bíblico:</span>
-              <div class="content">${study.bibleSelection ? study.bibleSelection.text : 'Não definido'}</div>
+              <div class="content">${escapeHtml(study.bibleSelection ? study.bibleSelection.text : 'Não definido')}</div>
             </div>
             <div class="section">
               <span class="label">Observações:</span>
-              <div class="content">${study.observations || ''}</div>
+              <div class="content">${escapeHtml(study.observations || '')}</div>
             </div>
           </body>
         </html>
@@ -203,6 +213,12 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {actionError && (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {actionError}
+        </div>
+      )}
 
       {user?.isGuest && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm flex items-center gap-3">
@@ -285,7 +301,11 @@ export default function Dashboard() {
                           Imprimir Material
                         </button>
                         <button 
-                          onClick={(e) => { e.stopPropagation(); alert('O download PDF requer servidor de geração de documentos.'); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActionError('O download PDF requer um servidor de geração de documentos.');
+                            setMenuOpenId(null);
+                          }}
                           className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                         >
                           <Download size={14} className="text-slate-400" />

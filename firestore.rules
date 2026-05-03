@@ -134,8 +134,13 @@ service cloud.firestore {
           isProfessorOf(groupId) || isMember(groupId) || isAdmin()
         );
         allow create: if isSignedIn() && isApproved() && (
-          isProfessorOf(groupId) || isOwner(memberId) || isAdmin()
-        );
+          isProfessorOf(groupId) || isAdmin()
+        ) &&
+        incoming().userId == memberId &&
+        incoming().groupId == groupId &&
+        incoming().groupName is string && incoming().groupName.size() <= 100 &&
+        incoming().professorId is string &&
+        incoming().role in ['student', 'monitor', 'professor'];
         allow delete: if isSignedIn() && isApproved() && (
           isProfessorOf(groupId) || isOwner(memberId) || isAdmin()
         );

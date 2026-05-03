@@ -1,16 +1,46 @@
 import { Study } from "../types";
+import { auth } from "../lib/firebase";
 
 const REQUEST_ERROR_MESSAGE = "Desculpe, estou com dificuldades para processar sua mensagem agora.";
+const GUEST_USER_KEY = 'guest_user';
 
 type GeminiAction = 'stageFeedback' | 'askInstructor' | 'generalChat';
 type ChatHistoryItem = { role: 'user' | 'model', content: string };
 
+function getGuestId() {
+  try {
+    const stored = localStorage.getItem(GUEST_USER_KEY);
+    if (!stored) return '';
+    const parsed = JSON.parse(stored) as { uid?: unknown; isGuest?: unknown };
+    return parsed.isGuest && typeof parsed.uid === 'string' ? parsed.uid : '';
+  } catch {
+    return '';
+  }
+}
+
+async function getRequestHeaders() {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  const currentUser = auth.currentUser;
+  if (currentUser) {
+    headers.Authorization = `Bearer ${await currentUser.getIdToken()}`;
+    return headers;
+  }
+
+  const guestId = getGuestId();
+  if (guestId) {
+    headers['X-Hermeneuta-Guest-Id'] = guestId;
+  }
+
+  return headers;
+}
+
 async function callGeminiApi(action: GeminiAction, payload: unknown) {
   const response = await fetch('/api/gemini', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: await getRequestHeaders(),
     body: JSON.stringify({ action, payload }),
   });
 

@@ -7,7 +7,6 @@ import {
   createGroup, 
   subscribeToMessages, 
   sendMessage,
-  joinGroup,
   listAllProfessors,
   findGroupsByProfessor,
   addStudentByEmail,
@@ -46,6 +45,7 @@ export default function GroupsPage() {
   const [linkStatus, setLinkStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const preservingScrollRef = useRef(false);
 
   const AI_GROUP: Group = {
     id: 'ai-instructor',
@@ -97,6 +97,7 @@ export default function GroupsPage() {
   // Adjust scroll only when new messages arrive at the bottom
   const [prevMsgCount, setPrevMsgCount] = useState(0);
   useEffect(() => {
+    if (preservingScrollRef.current) return;
     if (scrollRef.current && messages.length > prevMsgCount) {
       // If we just loaded more historical messages, don't scroll to bottom
       // But for new messages, scroll. We'll simplify and always scroll for now
@@ -108,6 +109,9 @@ export default function GroupsPage() {
 
   const handleLoadMore = async () => {
     if (!selectedGroup || !lastDoc || loadingMore || !hasMore) return;
+    const previousScrollHeight = scrollRef.current?.scrollHeight || 0;
+    const previousScrollTop = scrollRef.current?.scrollTop || 0;
+    preservingScrollRef.current = true;
     setLoadingMore(true);
     try {
       const { messages: older, nextLastDoc } = await fetchOlderMessages(selectedGroup.id, lastDoc, 25);
@@ -119,8 +123,16 @@ export default function GroupsPage() {
         return [...uniqueOlder, ...prev].sort((a, b) => a.timestamp - b.timestamp);
       });
       setLastDoc(nextLastDoc);
+      window.setTimeout(() => {
+        if (scrollRef.current) {
+          const heightDelta = scrollRef.current.scrollHeight - previousScrollHeight;
+          scrollRef.current.scrollTop = previousScrollTop + heightDelta;
+        }
+        preservingScrollRef.current = false;
+      }, 0);
     } catch (error) {
       console.error(error);
+      preservingScrollRef.current = false;
     } finally {
       setLoadingMore(false);
     }
@@ -182,27 +194,6 @@ export default function GroupsPage() {
     const content = newMessage;
     setNewMessage('');
     await sendMessage(selectedGroup.id, profile.uid, profile.displayName || 'Anônimo', content);
-  };
-
-  const [isJoining, setIsJoining] = useState(false);
-  const [joinCode, setJoinCode] = useState('');
-
-  const [joinError, setJoinError] = useState<string | null>(null);
-
-  const handleJoinGroup = async (groupId: string) => {
-    if (!profile) return;
-    setJoinError(null);
-    try {
-      await joinGroup(groupId, profile.uid);
-      const updatedGroups = await listUserGroups(profile.uid, profile.role);
-      setGroups([AI_GROUP, ...updatedGroups]);
-      setIsDiscoveryOpen(false);
-      setIsJoining(false);
-      setJoinCode('');
-    } catch (error: any) {
-      console.error(error);
-      setJoinError(error.message || 'Erro ao entrar na sala.');
-    }
   };
 
   const handleOpenDiscovery = async () => {
@@ -301,14 +292,7 @@ export default function GroupsPage() {
             >
               <Search size={18} />
             </button>
-            <button 
-              onClick={() => setIsJoining(true)}
-              className="p-1.5 hover:bg-slate-200 rounded-lg transition-colors text-slate-600"
-              title="Entrar em uma sala por ID"
-            >
-              <Hash size={18} />
-            </button>
-            {(profile?.role === 'professor' || profile?.role === 'monitor') && (
+            {(profile?.role === 'professor' || profile?.role === 'monitor' || profile?.role === 'admin') && (
               <button 
                 onClick={() => setIsCreating(true)}
                 className="p-1.5 hover:bg-slate-200 rounded-lg transition-colors text-slate-600"
@@ -333,26 +317,6 @@ export default function GroupsPage() {
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="ghost" onClick={() => setIsCreating(false)}>Cancelar</Button>
                 <Button size="sm" onClick={handleCreateGroup}>Criar</Button>
-              </div>
-            </div>
-          )}
-
-          {isJoining && (
-            <div className="p-3 bg-white rounded-xl border border-blue-500 shadow-sm space-y-3 mb-4">
-              <input 
-                autoFocus
-                className="w-full text-sm p-2 outline-none border-b border-slate-100"
-                placeholder="ID da Sala..."
-                value={joinCode}
-                onChange={e => setJoinCode(e.target.value)}
-              />
-              {joinError && <p className="text-[10px] font-bold text-red-500 px-1">{joinError}</p>}
-              <div className="flex justify-end gap-2">
-                <Button size="sm" variant="ghost" onClick={() => {
-                  setIsJoining(false);
-                  setJoinError(null);
-                }}>Cancelar</Button>
-                <Button size="sm" onClick={() => handleJoinGroup(joinCode)}>Entrar</Button>
               </div>
             </div>
           )}
@@ -387,7 +351,6 @@ export default function GroupsPage() {
                       <div key={room.id} className={`p-2 rounded-lg border flex items-center justify-between transition-all ${selectedRoomToLink?.id === room.id ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-amber-200'}`}>
                         <span className="text-xs font-medium text-slate-700">{room.name}</span>
                         <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" className="text-[10px]" onClick={() => handleJoinGroup(room.id)}>Entrar</Button>
                           {profile?.role === 'admin' && (
                             <Button 
                               size="sm" 
@@ -397,6 +360,11 @@ export default function GroupsPage() {
                             >
                               Vincular Prof.
                             </Button>
+                          )}
+                          {profile?.role !== 'admin' && (
+                            <span className="text-[10px] font-bold text-slate-400 px-2 py-1">
+                              Acesso por convite
+                            </span>
                           )}
                         </div>
                       </div>
@@ -460,11 +428,12 @@ export default function GroupsPage() {
                           <Button size="sm" variant="ghost" className="text-[10px]" onClick={async () => {
                             const profGroups = await findGroupsByProfessor(prof.uid);
                             if (profGroups.length > 0) {
-                              handleJoinGroup(profGroups[0].id);
+                              setSearchedRooms(profGroups);
+                              setRoomSearchQuery(profGroups[0].name);
                             } else {
-                              alert('Este professor ainda no criou salas públicas.');
+                              setLinkStatus({ type: 'error', message: 'Este professor ainda nao criou salas.' });
                             }
-                          }}>Ver Sala</Button>
+                          }}>Ver salas</Button>
                         </div>
                       </div>
                     ))}
