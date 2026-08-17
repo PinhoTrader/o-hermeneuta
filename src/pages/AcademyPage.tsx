@@ -36,17 +36,23 @@ export default function AcademyPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Convidado local (user.isGuest) nunca tem sessão real do Firebase Auth,
+    // mesmo com profile.isApproved forçado como true (getGuestProfile) para
+    // liberar navegação - por isso a checagem exclui isGuest explicitamente.
+    // Sem isso, a chamada ao Firestore era negada e, sem .catch(), a página
+    // ficava presa em "Carregando..." pra sempre pro convidado. Ver skill
+    // precedencia-e-gaps, item 16.
     const isApproved = profile?.isApproved || profile?.role === 'admin' || isSuperAdminEmail(profile?.email);
-    
-    if (profile?.uid && isApproved) {
-      getAcademyProgress(profile.uid).then(p => {
-        setProgress(p);
-        setLoading(false);
-      });
+
+    if (profile?.uid && isApproved && !user?.isGuest) {
+      getAcademyProgress(profile.uid)
+        .then(p => setProgress(p))
+        .catch(err => console.error('[AcademyPage] Failed to load progress:', err))
+        .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, [profile]);
+  }, [profile, user]);
 
   const isLessonCompleted = (lessonId: string) => {
     return progress?.completedLessons.includes(lessonId) || false;

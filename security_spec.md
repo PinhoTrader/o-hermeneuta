@@ -1,4 +1,4 @@
-# Security Specification - Cavar & Descobrir
+# Security Specification - O Hermeneuta
 
 ## 1. Data Invariants
 - `Study`:

@@ -1,4 +1,4 @@
-# Checklist de QA - Cavar & Descobrir
+# Checklist de QA - O Hermeneuta
 
 ## 1. Autenticação e Gestão de Conta
 - [ ] O usuário consegue entrar via Google.

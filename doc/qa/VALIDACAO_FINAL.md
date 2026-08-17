@@ -1,4 +1,4 @@
-# Relatório de Validação Final - Cavar & Descobrir
+# Relatório de Validação Final - O Hermeneuta
 
 ## 1. Alinhamento com o PRD e Fluxo do Produto
 - **Autenticação:** ✅ Implementada com Google e Modo Convidado.

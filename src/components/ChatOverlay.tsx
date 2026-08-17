@@ -49,13 +49,22 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
   };
 
   useEffect(() => {
+    // Convidado local (user.isGuest) nunca tem sessão real do Firebase Auth,
+    // mesmo com profile.isApproved forçado como true (getGuestProfile) para
+    // liberar navegação - por isso a checagem de "pode consultar o Firestore"
+    // exclui isGuest explicitamente, e não só isApproved. Ver skill
+    // precedencia-e-gaps, item 16.
     const isApproved = profile?.isApproved || profile?.role === 'admin' || isSuperAdminEmail(profile?.email);
 
-    if (isOpen && profile?.uid && isApproved) {
+    if (isOpen && profile?.uid && isApproved && !user?.isGuest) {
       setLoading(true);
       listUserGroups(profile.uid, profile.role)
         .then(userGroups => {
           setGroups([AI_GROUP, ...userGroups]);
+        })
+        .catch(error => {
+          console.error('[ChatOverlay] Failed to load groups:', error);
+          setGroups([AI_GROUP]);
         })
         .finally(() => setLoading(false));
     } else if (isOpen && (user?.isGuest || (profile?.uid && !isApproved))) {

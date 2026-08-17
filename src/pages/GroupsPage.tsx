@@ -58,10 +58,19 @@ export default function GroupsPage() {
   };
 
   useEffect(() => {
-    if (profile?.uid) {
-      listUserGroups(profile.uid, profile.role).then(userGroups => {
-        setGroups([AI_GROUP, ...userGroups]);
-      });
+    // Convidado local (user.isGuest) tem profile.uid preenchido mas nunca
+    // sessão real do Firebase Auth - sem excluir isGuest aqui, este branch
+    // sempre vencia pro convidado e a chamada ao Firestore era negada sem
+    // tratamento. Ver skill precedencia-e-gaps, item 16.
+    if (profile?.uid && !user?.isGuest) {
+      listUserGroups(profile.uid, profile.role)
+        .then(userGroups => {
+          setGroups([AI_GROUP, ...userGroups]);
+        })
+        .catch(error => {
+          console.error('[GroupsPage] Failed to load groups:', error);
+          setGroups([AI_GROUP]);
+        });
     } else if (user?.isGuest) {
       setGroups([AI_GROUP]);
       setSelectedGroup(AI_GROUP);

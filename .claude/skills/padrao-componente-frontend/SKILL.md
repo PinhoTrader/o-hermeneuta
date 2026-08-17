@@ -64,13 +64,13 @@ Um arquivo por domínio (`studyService`, `adminService`, `groupService`,
 e context chamam services diretamente — não existe camada de "repository"
 adicional.
 
-**Duplicação conhecida**: `handleFirestoreError`/`OperationType` estão
-reimplementados de forma quase idêntica em `src/lib/firebase.ts`,
-`adminService.ts`, `groupService.ts` e `academyService.ts`. Ao criar um
-service novo, **importar de `src/lib/firebase.ts`** em vez de copiar de novo
-— reduz a duplicação em vez de aumentá-la. Se for tocar em um dos services
-existentes por outro motivo, considerar migrar aquele arquivo para importar
-a versão de `lib/firebase.ts` como parte da mudança.
+**Duplicação resolvida em 2026-08-17**: `handleFirestoreError`/
+`OperationType` viviam reimplementados de forma quase idêntica em
+`adminService.ts`, `groupService.ts` e `academyService.ts` além de
+`src/lib/firebase.ts`. Os três services agora importam de
+`src/lib/firebase.ts` em vez de redeclarar. Ao criar um service novo,
+**sempre importar de `src/lib/firebase.ts`** — nunca copiar a implementação
+de novo.
 
 ## `bibleService.ts` — busca de texto bíblico
 
