@@ -5,8 +5,10 @@ import { listUserStudies, updateStudy, deleteStudy } from '../services/studyServ
 import { Study } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { 
-  Plus, 
+import { motion } from 'framer-motion';
+import { fade, fadeSlideRight, fadeZoom } from '../lib/motionVariants';
+import {
+  Plus,
   BookOpen, 
   Clock, 
   CheckCircle2, 
@@ -181,7 +183,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-32">
+    <motion.div {...fade(0.7)} className="space-y-8 pb-32">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold font-serif text-slate-900">Seus Estudos</h2>
@@ -196,8 +198,8 @@ export default function Dashboard() {
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-right-4 duration-300">
-            <input 
+          <motion.div {...fadeSlideRight(0.3)} className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+            <input
               type="text" 
               placeholder="Nome do seu estudo..." 
               autoFocus
@@ -210,7 +212,7 @@ export default function Dashboard() {
             <Button size="sm" variant="ghost" onClick={() => { setShowNamingDialog(false); setNewStudyTitle(''); }}>
               Cancelar
             </Button>
-          </div>
+          </motion.div>
         )}
       </div>
 
@@ -273,7 +275,11 @@ export default function Dashboard() {
                         className="fixed inset-0 z-10" 
                         onClick={() => setMenuOpenId(null)} 
                       />
-                      <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-20 animate-in fade-in zoom-in-95 duration-200">
+                      <motion.div
+                        {...fadeZoom(0.2)}
+                        style={{ transformOrigin: 'top right' }}
+                        className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-20"
+                      >
                         <button 
                           onClick={(e) => { e.stopPropagation(); navigate(`/study/${study.id}`); }}
                           className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
@@ -328,7 +334,7 @@ export default function Dashboard() {
                           )}
                           Excluir Estudo
                         </button>
-                      </div>
+                      </motion.div>
                     </>
                   )}
                 </div>
@@ -360,7 +366,7 @@ export default function Dashboard() {
       {/* Delete Confirmation Modal */}
       {studyToDelete && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200">
+          <motion.div {...fadeZoom(0.2)} className="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl space-y-6">
             <div className="flex flex-col items-center text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-500">
                 <Trash2 size={32} />
@@ -389,14 +395,14 @@ export default function Dashboard() {
                 Excluir
               </Button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
       {/* Edit Title Modal */}
       {editingStudy && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-300">
+          <motion.div {...fadeZoom(0.3)} className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold font-serif text-slate-900">Editar Estudo</h2>
               <button onClick={() => setEditingStudy(null)} className="text-slate-400 hover:text-slate-600">
@@ -418,9 +424,9 @@ export default function Dashboard() {
                 <Button className="flex-1" onClick={handleUpdateStudy}>Salvar Alterações</Button>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

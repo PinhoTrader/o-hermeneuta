@@ -131,15 +131,16 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
       
       setMessages(prev => [...prev, userMsg]);
       setLoadingAi(true);
+      setChatError(null);
 
       try {
         const history = messages.slice(-6).map(m => ({
           role: (m.senderId === 'ai' ? 'model' : 'user') as 'user' | 'model',
           content: m.content
         }));
-        
+
         const aiResponse = await generalAIChat(content, history);
-        
+
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
           content: aiResponse,
@@ -151,6 +152,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
         setMessages(prev => [...prev, aiMsg]);
       } catch (error) {
         console.error(error);
+        setChatError('Não foi possível obter resposta do Instrutor de IA agora. Tente novamente em instantes.');
       } finally {
         setLoadingAi(false);
       }

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
+import { motion } from 'framer-motion';
+import { fadeSlideTop } from '../lib/motionVariants';
 import { Plus, Send, Users, MessageCircle, Hash, Search, UserPlus } from 'lucide-react';
 import { 
   listUserGroups, 
@@ -385,7 +387,7 @@ export default function GroupsPage() {
 
               {/* Professor Selection for Linking (Admin only) */}
               {selectedRoomToLink && profile?.role === 'admin' && (
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 space-y-3 animate-in fade-in slide-in-from-top-2">
+                <motion.div {...fadeSlideTop(0.15)} className="p-3 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] font-bold text-amber-600 uppercase">Vincular Professor a: {selectedRoomToLink.name}</p>
                     <button onClick={() => setSelectedRoomToLink(null)} className="text-amber-500 hover:text-amber-700">
@@ -418,7 +420,7 @@ export default function GroupsPage() {
                       {linkStatus.message}
                     </p>
                   )}
-                </div>
+                </motion.div>
               )}
 
               {/* Default Professor List (Discovery) */}

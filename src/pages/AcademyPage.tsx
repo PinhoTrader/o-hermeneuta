@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { ACADEMY_CONTENT, getAcademyProgress, updateLessonCompletion } from '../services/academyService';
 import { AcademyProgress, Lesson, AcademyModule } from '../types';
 import { Button } from '../components/ui/Button';
+import { fadeSlideBottom, fadeZoom } from '../lib/motionVariants';
 import { isSuperAdminEmail } from '../config/superAdmin';
 import Markdown from 'react-markdown';
 
@@ -287,7 +288,7 @@ export default function AcademyPage() {
                 )}
 
                 {quizState && !quizState.isFinished && selectedLesson.quiz && (
-                  <div className="bg-white p-8 md:p-12 rounded-[32px] border border-slate-100 shadow-xl space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                  <motion.div {...fadeSlideBottom(0.5)} className="bg-white p-8 md:p-12 rounded-[32px] border border-slate-100 shadow-xl space-y-8">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
                         Questão {quizState.currentQuestionIndex + 1} de {selectedLesson.quiz.length}
@@ -369,11 +370,11 @@ export default function AcademyPage() {
                         </Button>
                       </motion.div>
                     )}
-                  </div>
+                  </motion.div>
                 )}
 
                 {quizState?.isFinished && (
-                  <div className="bg-white p-12 rounded-[40px] border border-slate-100 shadow-2xl text-center space-y-8 animate-in zoom-in-95 duration-500">
+                  <motion.div {...fadeZoom(0.5)} className="bg-white p-12 rounded-[40px] border border-slate-100 shadow-2xl text-center space-y-8">
                     <div className="w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
                       <CheckCircle2 size={64} />
                     </div>
@@ -401,7 +402,7 @@ export default function AcademyPage() {
                         Próxima Lição
                       </Button>
                     </div>
-                  </div>
+                  </motion.div>
                 )}
               </div>
 

@@ -103,24 +103,47 @@ Erro abaixo do form: `text-xs text-red-500 bg-red-50 p-2 rounded-lg`.
 - FAB (botão flutuante) para chat/comunidade: `fixed bottom-6 right-6 z-50`,
   classe utilitária `.fab-community` já pronta em `index.css`.
 
-## ⚠️ Gap real encontrado — animações "no-op"
+## ✅ Resolvido em 2026-08-17 — animações via framer-motion
 
-`animate-in`, `fade-in`, `slide-in-from-right-4`, `zoom-in-95` aparecem em
-9 arquivos (`App.tsx`, `StudyStep.tsx`, `StudyController.tsx`, `Dashboard.tsx`,
-`FinalReview.tsx`, `AdminPanel.tsx`, `BibleSelection.tsx`, `AcademyPage.tsx`,
-`GroupsPage.tsx`) mas **não existe plugin `tailwindcss-animate` nem qualquer
-definição dessas classes** no projeto (Tailwind v4 não as inclui por padrão).
-Essas classes não geram CSS nenhum — a intenção de "entrada suave" nessas
-telas está sendo desenhada, mas não está acontecendo visualmente hoje.
+O gap de `animate-in`/`fade-in`/`slide-in-from-*`/`zoom-in-95` (9 arquivos,
+17 ocorrências, classes sem efeito por falta do plugin `tailwindcss-animate`)
+foi resolvido substituindo essas classes por `motion.div` (`framer-motion`,
+pacote `motion`), não pela instalação do plugin.
 
-Ao tocar em qualquer uma dessas telas, **não presumir que a animação já
-funciona**. Duas saídas possíveis, decisão de produto — não decidir sozinho,
-perguntar ao usuário/`arquiteto-de-produto`:
-1. Instalar `tailwindcss-animate` e registrar o plugin (aproxima do
-   comportamento hoje só "desenhado" em classe).
-2. Trocar por animação real via `framer-motion` (`motion.div` +
-   `initial`/`animate`/`exit`), já usado em `Layout.tsx` para o menu mobile —
-   mais consistente com o resto do código, que já depende de `motion`.
+**Motivo da escolha:** `motion` já é dependência do projeto e já é o padrão
+real em `Layout.tsx` (menu mobile), `ChatOverlay.tsx` (drawer + backdrop) e
+mesmo dentro de `StudyStep.tsx` (painel do Instrutor de IA já usava
+`AnimatePresence mode="wait"`) — a própria `div` wrapper do `StudyStep`
+usava a classe no-op, ou seja, o arquivo já tinha dois sistemas de animação
+coexistindo, um real e um fake. Adotar `tailwindcss-animate` criaria um
+terceiro sistema em paralelo, e tem risco de compatibilidade com a API de
+plugin do Tailwind v3 rodando sobre Tailwind v4 (`@theme`, sem
+`tailwind.config.js`). `motion` não tem esse risco, custo de bundle zero (já
+carregado), e centraliza tudo num único mental model.
+
+**Padrão a seguir daqui pra frente — não usar mais classes `animate-in`/
+`fade-in`/`slide-in-from-*`/`zoom-in-*` (não existem no projeto, viram no-op
+silencioso).** Usar as variantes de `motion.div` em `src/lib/motionVariants.ts`,
+todas com `transition={{ duration: <X>, ease: 'easeOut' }}`:
+
+```
+fade            → initial={{ opacity: 0 }}             animate={{ opacity: 1 }}
+fadeSlideRight  → initial={{ opacity: 0, x: 16 }}       animate={{ opacity: 1, x: 0 }}
+fadeSlideBottom → initial={{ opacity: 0, y: 16 }}       animate={{ opacity: 1, y: 0 }}
+fadeSlideTop    → initial={{ opacity: 0, y: -8 }}       animate={{ opacity: 1, y: 0 }}
+fadeZoom        → initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+```
+
+Duração por contexto: wrapper de página `0.5`–`0.7`s (`fade`); troca de
+etapa/conteúdo principal `0.5`s (`fadeSlideRight`/`fadeSlideBottom`); modal
+central `0.2`–`0.3`s (`fadeZoom`); dropdown/menu pequeno `0.2`s (`fadeZoom`,
+com `style={{ transformOrigin: <canto de ancoragem> }}`); alerta inline
+pequeno `0.15`s (`fadeSlideTop`).
+
+Essas animações são só de entrada (mount) — nenhum elemento hoje tem
+`AnimatePresence`/`exit` (mesmo comportamento de antes, quando `animate-in`
+também só definia entrada). Adicionar animação de saída em modal/dropdown é
+melhoria separada, não presumir que já existe.
 
 ## Responsividade
 

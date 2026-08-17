@@ -82,6 +82,13 @@ corrigir de improviso.
     em `firestore.rules` usa `request.auth.token.email` (acesso direto) em
     vez de `.get('email', '')` — um token sem a claim `email` faz a regra
     lançar erro de avaliação em vez de negar limpo. Ver `padrao-firestore-rules`.
+15. **Novo, achado na Fase 3 (UX)**: `src/pages/GroupsPage.tsx` tem, no seu
+    próprio `handleSendMessage` (branch de chat com IA, ~linha 195), o mesmo
+    padrão de erro silencioso que foi corrigido em `StudyStep.tsx` e
+    `ChatOverlay.tsx` (catch só com `console.error`, sem avisar o usuário).
+    Ficou fora do escopo pedido na Fase 3 (só `ChatOverlay.tsx` foi
+    mencionado) — mesmo fix (reaproveitar/adicionar estado de erro visível)
+    se aplica aqui quando alguém for tocar nesse arquivo.
 13. **Só existe `doc/stack/03_...md`**, sem `01_`/`02_` — sugere documentos
     de arquitetura/modelo de dados que nunca foram escritos ou foram
     removidos. Não presumir que existem em outro lugar.

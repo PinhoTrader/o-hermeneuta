@@ -13,7 +13,9 @@ import {
   Edit2
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { 
+import { motion } from 'framer-motion';
+import { fade, fadeZoom } from '../lib/motionVariants';
+import {
   getAllUsers, 
   updateUserRole, 
   approveUser,
@@ -154,7 +156,7 @@ export default function AdminPanel() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <motion.div {...fade(0.5)} className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-serif text-slate-900">Painel Administrativo</h1>
@@ -335,8 +337,8 @@ export default function AdminPanel() {
 
       {/* New User Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6">
+        <motion.div {...fade(0.3)} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
+          <motion.div {...fadeZoom(0.3)} className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold font-serif">
                 {editingUser ? 'Editar Usuário' : `Cadastrar ${selectedRole === 'professor' ? 'Mentor' : 'Aluno'}`}
@@ -428,14 +430,14 @@ export default function AdminPanel() {
                 Ao cadastrar um novo usuário por e-mail, ele terá acesso imediato e será vinculado automaticamente quando realizar o primeiro login com o Google.
               </p>
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
 
       {/* Delete User Confirmation Modal */}
       {userToDelete && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200">
+          <motion.div {...fadeZoom(0.2)} className="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl space-y-6">
             <div className="flex flex-col items-center text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-500">
                 <Trash2 size={32} />
@@ -464,9 +466,9 @@ export default function AdminPanel() {
                 Excluir
               </Button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

@@ -4,6 +4,8 @@ import { StudyProvider, useStudy } from './context/StudyContext';
 import { ProtectedRoute, AdminRoute } from './components/AuthRoutes';
 import { Button } from './components/ui/Button';
 import { BookOpen } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { fadeZoom } from './lib/motionVariants';
 import React from 'react';
 
 const LandingPage = React.lazy(() => import('./pages/LandingPage'));
@@ -45,7 +47,7 @@ function NewStudyRoute() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
-      <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-slate-100 space-y-6 animate-in fade-in zoom-in-95 duration-500">
+      <motion.div {...fadeZoom(0.5)} className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-slate-100 space-y-6">
         <div className="text-center space-y-2">
           <div className="w-16 h-16 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
             <BookOpen size={32} />
@@ -90,7 +92,7 @@ function NewStudyRoute() {
             </Button>
           </div>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }

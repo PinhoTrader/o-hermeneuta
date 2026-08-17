@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
 import { ChevronRight } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { fadeSlideBottom } from '../lib/motionVariants';
 
 import { fetchBibleText } from '../services/bibleService';
 
@@ -102,7 +104,7 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <motion.div {...fadeSlideBottom(0.5)} className="max-w-2xl mx-auto space-y-8">
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-bold font-serif">Escolha o Texto Bíblico</h2>
         <p className="text-slate-500">Selecione o trecho que você deseja cavar e descobrir.</p>
@@ -197,6 +199,6 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
           "A erva seca, e a flor cai, mas a palavra do nosso Deus permanece para sempre." — Isaías 40:8
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }

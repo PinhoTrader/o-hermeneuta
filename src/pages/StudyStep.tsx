@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
-import { Sparkles, Save, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
+import { Sparkles, Save, ChevronLeft, ChevronRight, HelpCircle, AlertTriangle } from 'lucide-react';
 import { getStageFeedback } from '../services/geminiService';
 import { fetchBibleText } from '../services/bibleService';
 import { motion, AnimatePresence } from 'framer-motion';
+import { fadeSlideRight } from '../lib/motionVariants';
 
 import Markdown from 'react-markdown';
 
@@ -23,8 +24,12 @@ export default function StudyStep({ title, field, description, placeholder, meth
   const [content, setSelection] = useState<string>((currentStudy as any)?.[field] || '');
   const [lastSavedContent, setLastSavedContent] = useState<string>((currentStudy as any)?.[field] || '');
   const [aiFeedback, setAiFeedback] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingBack, setSavingBack] = useState(false);
+  const [savingNext, setSavingNext] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [loadingBible, setLoadingBible] = useState(false);
   const [translation, setTranslation] = useState(currentStudy?.bibleSelection?.translation || 'NVI');
 
@@ -33,6 +38,8 @@ export default function StudyStep({ title, field, description, placeholder, meth
      setSelection(dbContent);
      setLastSavedContent(dbContent);
      setAiFeedback(null);
+     setAiError(null);
+     setSaveError(false);
      if (currentStudy?.bibleSelection?.translation) {
        setTranslation(currentStudy.bibleSelection.translation);
      }
@@ -50,9 +57,11 @@ export default function StudyStep({ title, field, description, placeholder, meth
           setSaving(true);
           await updateCurrentStudy({ [field]: content });
           setLastSavedContent(content);
+          setSaveError(false);
           console.info(`[Autosave] Saved field: ${field}`);
         } catch (err) {
           console.error('[Autosave] Error:', err);
+          setSaveError(true);
         } finally {
           setSaving(false);
         }
@@ -97,27 +106,56 @@ export default function StudyStep({ title, field, description, placeholder, meth
     try {
       await updateCurrentStudy({ [field]: content });
       setLastSavedContent(content);
+      setSaveError(false);
     } catch (err) {
       console.error('Manual save failed:', err);
+      setSaveError(true);
     } finally {
       setSaving(false);
     }
+  };
+
+  // "Voltar" precisa garantir o mesmo save do "Próximo Passo" antes de navegar,
+  // senão o timer de autosave pendente é cancelado (componente remonta via
+  // key={currentStep.id}) e o texto digitado nos últimos segundos se perde.
+  const handleBack = async () => {
+    setSavingBack(true);
+    try {
+      await handleSave();
+    } finally {
+      setSavingBack(false);
+    }
+    onBack();
+  };
+
+  const handleNext = async () => {
+    setSavingNext(true);
+    try {
+      await handleSave();
+    } finally {
+      setSavingNext(false);
+    }
+    onNext();
   };
 
   const handleAiReview = async () => {
     if (!currentStudy) return;
     setLoadingAi(true);
     setAiFeedback(null);
+    setAiError(null);
     try {
       const feedback = await getStageFeedback(title, { ...currentStudy, [field]: content } as any);
       setAiFeedback(feedback);
+    } catch (err) {
+      console.error('[AI Review] Error:', err);
+      setAiError('Não foi possível obter a revisão da IA agora. Tente novamente em instantes (o limite diário de revisões também pode ter sido atingido).');
     } finally {
       setLoadingAi(false);
     }
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-right-4 duration-500">
+    <motion.div {...fadeSlideRight(0.5)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Left Column: Text & Instructions */}
       <div className="lg:col-span-2 space-y-6">
         <div className="space-y-1">
@@ -169,20 +207,25 @@ export default function StudyStep({ title, field, description, placeholder, meth
             onChange={(e) => setSelection(e.target.value)}
           />
           
-          <div className="flex items-center justify-between">
-            <Button variant="ghost" size="sm" onClick={handleSave} loading={saving}>
-              <Save size={16} />
-              {saving ? 'Salvando...' : 'Salvar rascunho'}
-            </Button>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={handleSave} loading={saving}>
+                <Save size={16} />
+                {saving ? 'Salvando...' : 'Salvar rascunho'}
+              </Button>
+              {saveError && (
+                <span className="flex items-center gap-1.5 text-xs text-red-500">
+                  <AlertTriangle size={14} />
+                  Falha ao salvar automaticamente. Salve manualmente para garantir seu progresso.
+                </span>
+              )}
+            </div>
             <div className="flex gap-3">
-              <Button variant="outline" onClick={onBack}>
+              <Button variant="outline" onClick={handleBack} loading={savingBack} disabled={savingNext}>
                 <ChevronLeft size={18} />
                 Voltar
               </Button>
-              <Button onClick={async () => {
-                await handleSave();
-                onNext();
-              }}>
+              <Button onClick={handleNext} loading={savingNext} disabled={savingBack}>
                 Próximo Passo
                 <ChevronRight size={18} />
               </Button>
@@ -228,8 +271,13 @@ export default function StudyStep({ title, field, description, placeholder, meth
                   <p className="text-sm text-slate-500 leading-relaxed italic">
                     Precisa de ajuda para aprofundar sua análise nesta etapa? Peça uma revisão pedagógica baseada no seu texto.
                   </p>
-                  <Button 
-                    className="w-full bg-slate-900" 
+                  {aiError && (
+                    <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {aiError}
+                    </div>
+                  )}
+                  <Button
+                    className="w-full bg-slate-900"
                     onClick={handleAiReview}
                     loading={loadingAi}
                   >
@@ -259,6 +307,6 @@ export default function StudyStep({ title, field, description, placeholder, meth
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

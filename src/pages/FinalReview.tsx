@@ -1,6 +1,8 @@
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
 import { CheckCircle2, ChevronLeft, ArrowRight } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { fadeSlideBottom } from '../lib/motionVariants';
 
 export default function FinalReview({ onBack, onComplete }: { onBack: () => void, onComplete: () => void }) {
   const { currentStudy } = useStudy();
@@ -17,7 +19,7 @@ export default function FinalReview({ onBack, onComplete }: { onBack: () => void
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <motion.div {...fadeSlideBottom(0.5)} className="max-w-4xl mx-auto space-y-8">
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-bold font-serif">Revisão Final</h2>
         <p className="text-slate-500 text-sm">Confira seu trabalho antes de concluir o estudo.</p>
@@ -50,6 +52,6 @@ export default function FinalReview({ onBack, onComplete }: { onBack: () => void
           <ArrowRight size={20} />
         </Button>
       </div>
-    </div>
+    </motion.div>
   );
 }

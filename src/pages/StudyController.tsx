@@ -5,7 +5,9 @@ import { Button } from '../components/ui/Button';
 import BibleSelection from './BibleSelection';
 import StudyStep from './StudyStep';
 import FinalReview from './FinalReview';
-import { 
+import { motion } from 'framer-motion';
+import { fade, fadeZoom } from '../lib/motionVariants';
+import {
   Eye, 
   HelpCircle, 
   ScrollText, 
@@ -86,7 +88,7 @@ export default function StudyController() {
   const currentStep = STEPS[currentStepIndex];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <motion.div {...fade(0.5)} className="space-y-8 pb-20">
       {/* Header Info */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-6">
         <div>
@@ -145,7 +147,7 @@ export default function StudyController() {
          )}
 
          {currentStep.id === 'review' && isFinished && (
-           <div className="max-w-2xl mx-auto glass-card p-12 rounded-[40px] text-center space-y-6 animate-in zoom-in duration-500">
+           <motion.div {...fadeZoom(0.5)} className="max-w-2xl mx-auto glass-card p-12 rounded-[40px] text-center space-y-6">
               <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 size={40} />
               </div>
@@ -159,9 +161,9 @@ export default function StudyController() {
                    Voltar ao Dashboard
                 </Button>
               </div>
-           </div>
+           </motion.div>
          )}
       </div>
-    </div>
+    </motion.div>
   );
 }
