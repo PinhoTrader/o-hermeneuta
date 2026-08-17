@@ -1,6 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Study } from '../src/types';
+import firebaseConfig from '../firebase-applet-config.json';
 
 type ChatHistoryItem = {
   role: 'user' | 'model';
@@ -41,21 +43,13 @@ type VercelRequest = IncomingMessage & {
   };
 };
 
-type RequestIdentity = {
-  id: string;
-  kind: 'guest' | 'user';
-  dailyLimit: number;
-};
+export type RequestIdentity =
+  | { id: string; kind: 'guest'; dailyLimit: number }
+  | { id: string; kind: 'user'; dailyLimit: number; uid: string; idToken: string };
 
 type IdentityResult =
   | { identity: RequestIdentity; error?: never }
   | { identity: null; error: string };
-
-type JwtPayload = {
-  sub?: unknown;
-  user_id?: unknown;
-  exp?: unknown;
-};
 
 type MentorDeviation = 'legalismo' | 'liberalismo/permissividade' | null;
 type MentorSeverity = 'leve' | 'moderado' | 'recorrente' | null;
@@ -94,7 +88,25 @@ const MAX_HISTORY_ITEMS = 6;
 const MAX_GUEST_REQUESTS_PER_DAY = 5;
 const MAX_USER_REQUESTS_PER_DAY = 30;
 
-const quotaStore = new Map<string, { count: number; day: string }>();
+// Sentinel studyId reserved for the server-side daily quota counter, stored in the
+// same `aiUsage` collection/schema the client already writes to (see aiUsageService.ts).
+// Kept distinct from any real study id so it never collides with per-study telemetry.
+const DAILY_QUOTA_STUDY_ID = '__daily_quota__';
+
+const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
+const FIREBASE_ISSUER = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
+const FIRESTORE_DOCUMENTS_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/${firebaseConfig.firestoreDatabaseId}/documents`;
+
+// Public keys used to verify Firebase Auth ID tokens without the Admin SDK (no
+// service account credential needed - see https://firebase.google.com/docs/auth/admin/verify-id-tokens#verify_id_tokens_using_a_third-party_jwt_library).
+const googleIdTokenJwks = createRemoteJWKSet(
+  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
+);
+
+// Guests have no durable Firebase identity, so their quota can only live in memory
+// for the lifetime of a warm serverless instance. Authenticated users are tracked
+// durably in Firestore instead (see reserveUserQuota).
+const guestQuotaStore = new Map<string, { count: number; day: string }>();
 
 const SYSTEM_INSTRUCTION = `Você é o Instrutor de IA do aplicativo "O Hermeneuta".
 
@@ -254,34 +266,36 @@ function getBearerToken(req: VercelRequest) {
   return header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
 }
 
-function decodeJwtPayload(token: string): JwtPayload | null {
+export async function verifyFirebaseIdToken(token: string): Promise<string | null> {
   try {
-    const payload = token.split('.')[1];
-    if (!payload) return null;
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
-    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as JwtPayload;
+    const { payload } = await jwtVerify(token, googleIdTokenJwks, {
+      issuer: FIREBASE_ISSUER,
+      audience: FIREBASE_PROJECT_ID,
+      algorithms: ['RS256'],
+    });
+    const subject = typeof payload.sub === 'string' ? payload.sub : '';
+    return subject ? subject : null;
   } catch {
+    // Covers: bad signature, expired/not-yet-valid, wrong issuer/audience, malformed token.
     return null;
   }
 }
 
-function getIdentity(req: VercelRequest): IdentityResult {
+export async function getIdentity(req: VercelRequest): Promise<IdentityResult> {
   const token = getBearerToken(req);
   if (token) {
-    const payload = decodeJwtPayload(token);
-    const expiresAt = typeof payload?.exp === 'number' ? payload.exp : 0;
-    const subject = payload?.user_id || payload?.sub;
-
-    if (!payload || !expiresAt || expiresAt * 1000 <= Date.now() || typeof subject !== 'string' || !subject) {
+    const uid = await verifyFirebaseIdToken(token);
+    if (!uid) {
       return { identity: null, error: 'Sua sessão expirou. Faça login novamente.' };
     }
 
     return {
       identity: {
-        id: `user:${subject}`,
+        id: `user:${uid}`,
         kind: 'user',
         dailyLimit: MAX_USER_REQUESTS_PER_DAY,
+        uid,
+        idToken: token,
       },
     };
   }
@@ -304,17 +318,92 @@ function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function reserveQuota(identity: RequestIdentity) {
+function reserveGuestQuota(identity: Extract<RequestIdentity, { kind: 'guest' }>) {
   const day = getTodayKey();
-  const current = quotaStore.get(identity.id);
+  const current = guestQuotaStore.get(identity.id);
   const nextCount = current?.day === day ? current.count + 1 : 1;
 
   if (nextCount > identity.dailyLimit) {
     return false;
   }
 
-  quotaStore.set(identity.id, { count: nextCount, day });
+  guestQuotaStore.set(identity.id, { count: nextCount, day });
   return true;
+}
+
+type FirestoreIntegerField = { integerValue: string };
+
+export async function reserveUserQuota(identity: Extract<RequestIdentity, { kind: 'user' }>): Promise<boolean> {
+  const docPath = `aiUsage/${identity.uid}_daily_${getTodayKey()}`;
+  const documentName = `projects/${FIREBASE_PROJECT_ID}/databases/${firebaseConfig.firestoreDatabaseId}/documents/${docPath}`;
+  const headers = {
+    Authorization: `Bearer ${identity.idToken}`,
+    'Content-Type': 'application/json',
+  };
+
+  const getResponse = await fetch(`${FIRESTORE_DOCUMENTS_URL}/${docPath}`, { headers });
+
+  let currentCount = 0;
+  let docExists = false;
+  if (getResponse.status === 200) {
+    const doc = (await getResponse.json()) as { fields?: { queryCount?: FirestoreIntegerField } };
+    currentCount = Number(doc.fields?.queryCount?.integerValue ?? '0');
+    docExists = true;
+  } else if (getResponse.status !== 404) {
+    throw new Error(`Falha ao ler quota no Firestore (status ${getResponse.status}).`);
+  }
+
+  if (currentCount + 1 > identity.dailyLimit) {
+    return false;
+  }
+
+  // Uses the Firestore REST `:commit` write with a REQUEST_TIME transform for
+  // lastQueryAt, the wire-level equivalent of the client SDK's serverTimestamp() -
+  // required because firestore.rules demands `incoming().lastQueryAt == request.time`.
+  const commitResponse = await fetch(`${FIRESTORE_DOCUMENTS_URL}:commit`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      writes: [
+        {
+          update: {
+            name: documentName,
+            fields: {
+              uid: { stringValue: identity.uid },
+              studyId: { stringValue: DAILY_QUOTA_STUDY_ID },
+              queryCount: { integerValue: String(currentCount + 1) },
+            },
+          },
+          updateMask: { fieldPaths: ['uid', 'studyId', 'queryCount'] },
+          updateTransforms: [{ fieldPath: 'lastQueryAt', setToServerValue: 'REQUEST_TIME' }],
+          currentDocument: docExists ? { exists: true } : { exists: false },
+        },
+      ],
+    }),
+  });
+
+  if (!commitResponse.ok) {
+    // Most likely a race with a concurrent request from the same user (the
+    // `currentDocument.exists` precondition failed) - fail closed either way.
+    throw new Error(`Falha ao gravar quota no Firestore (status ${commitResponse.status}).`);
+  }
+
+  return true;
+}
+
+async function reserveQuota(identity: RequestIdentity): Promise<boolean> {
+  if (identity.kind === 'guest') {
+    return reserveGuestQuota(identity);
+  }
+
+  try {
+    return await reserveUserQuota(identity);
+  } catch (error) {
+    // Fail closed: an unreachable/misbehaving Firestore should not turn into
+    // unlimited free usage of the Gemini API.
+    console.error('Gemini quota (Firestore) error:', error);
+    return false;
+  }
 }
 
 function truncateText(value: unknown, maxLength = MAX_CONTEXT_FIELD_LENGTH) {
@@ -659,7 +748,7 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
   }
 
   try {
-    const { identity, error: identityError } = getIdentity(req);
+    const { identity, error: identityError } = await getIdentity(req);
     if (!identity) {
       sendJson(res, 401, { error: identityError });
       return;
@@ -672,7 +761,7 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
       return;
     }
 
-    if (!reserveQuota(identity)) {
+    if (!(await reserveQuota(identity))) {
       sendJson(res, 429, { error: QUOTA_ERROR_MESSAGE });
       return;
     }

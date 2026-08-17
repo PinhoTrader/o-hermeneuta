@@ -22,6 +22,7 @@ import { Group, Message } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from './ui/Button';
+import { isSuperAdminEmail } from '../config/superAdmin';
 
 interface ChatOverlayProps {
   isOpen: boolean;
@@ -48,7 +49,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
   };
 
   useEffect(() => {
-    const isApproved = profile?.isApproved || profile?.role === 'admin' || profile?.email === 'escoladetradersead@gmail.com';
+    const isApproved = profile?.isApproved || profile?.role === 'admin' || isSuperAdminEmail(profile?.email);
 
     if (isOpen && profile?.uid && isApproved) {
       setLoading(true);

@@ -56,9 +56,10 @@ Firestore) / 30 por dia no servidor (`api/gemini.ts`) para usuário autenticado,
 `Infinity` no client-side para student/contributor/admin (a quota real que
 importa é a do servidor).
 
-Super-admin hardcoded: `escoladetradersead@gmail.com` — presente em
-`AuthContext.tsx`, `AuthRoutes.tsx`/`Layout.tsx` e `firestore.rules`
-simultaneamente. Qualquer mudança nesse e-mail exige tocar os três lugares.
+Super-admin: `escoladetradersead@gmail.com`, centralizado em
+`src/config/superAdmin.ts` no lado do cliente (2026-08-17); `firestore.rules`
+mantém sua própria cópia por ser linguagem própria. Qualquer mudança nesse
+e-mail exige tocar os dois.
 
 ## Princípios não-negociáveis
 

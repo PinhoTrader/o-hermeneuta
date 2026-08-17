@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/Button';
 import { ChatOverlay } from './ChatOverlay';
+import { isSuperAdminEmail } from '../config/superAdmin';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,7 +29,7 @@ export function Layout({ children }: LayoutProps) {
     navItems.push({ label: 'Admin', path: '/admin', icon: Shield });
   }
 
-  const isApproved = profile?.isApproved || profile?.role === 'admin' || profile?.email === 'escoladetradersead@gmail.com';
+  const isApproved = profile?.isApproved || profile?.role === 'admin' || isSuperAdminEmail(profile?.email);
 
   const filteredNavItems = navItems.filter(item => {
     if (item.restricted) return isApproved;

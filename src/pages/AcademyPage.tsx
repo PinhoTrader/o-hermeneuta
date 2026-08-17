@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { ACADEMY_CONTENT, getAcademyProgress, updateLessonCompletion } from '../services/academyService';
 import { AcademyProgress, Lesson, AcademyModule } from '../types';
 import { Button } from '../components/ui/Button';
+import { isSuperAdminEmail } from '../config/superAdmin';
 import Markdown from 'react-markdown';
 
 export default function AcademyPage() {
@@ -34,7 +35,7 @@ export default function AcademyPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const isApproved = profile?.isApproved || profile?.role === 'admin' || profile?.email === 'escoladetradersead@gmail.com';
+    const isApproved = profile?.isApproved || profile?.role === 'admin' || isSuperAdminEmail(profile?.email);
     
     if (profile?.uid && isApproved) {
       getAcademyProgress(profile.uid).then(p => {

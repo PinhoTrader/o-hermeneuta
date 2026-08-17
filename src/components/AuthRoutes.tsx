@@ -4,6 +4,7 @@ import { Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Layout } from './Layout';
 import { Button } from './ui/Button';
+import { isSuperAdminEmail } from '../config/superAdmin';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, signOut, authAction } = useAuth();
@@ -16,7 +17,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   
   if (!user) return <Navigate to="/" />;
   
-  const isAdminEmail = user?.email === 'escoladetradersead@gmail.com';
+  const isAdminEmail = isSuperAdminEmail(user?.email);
   
   if (profile && !profile.isApproved && !user.isGuest && !isAdminEmail) {
     return (

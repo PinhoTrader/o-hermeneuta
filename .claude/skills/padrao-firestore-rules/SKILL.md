@@ -72,26 +72,29 @@ Ao adicionar um campo que registra "quando" algo aconteceu, seguir o mesmo
 padrão de `updatedAt == request.time` — nunca confiar em timestamp vindo do
 cliente.
 
-## ⚠️ Gaps de segurança reais (não decidir sozinho — sinalizar)
+## Gaps de segurança — histórico
 
-1. **JWT sem verificação de assinatura**: `api/gemini.ts::decodeJwtPayload`
-   decodifica o token do Firebase Auth só lendo o payload em base64 —
-   `exp`/`sub`/`user_id` são extraídos sem checar a assinatura
-   criptográfica. Isso é diferente das regras do Firestore (que sim
-   verificam a assinatura via `request.auth`) — é uma camada de identidade
-   mais fraca, específica da rota de IA. Se alguém pedir para "reforçar
-   autenticação da IA", isso é o ponto real a corrigir (usar
-   `firebase-admin` para verificar o ID token de verdade — hoje
-   `firebase-admin` está instalado mas não é usado em lugar nenhum, ver
-   `padrao-teste`/`AGENTS.md`).
-2. **Super-admin hardcoded em 3 lugares**: `firestore.rules`
-   (`isSuperAdminEmail`), `src/context/AuthContext.tsx`,
-   `src/components/AuthRoutes.tsx`/`Layout.tsx`. Trocar esse e-mail exige
-   editar os três — não há fonte única. Não "corrigir" isso silenciosamente
-   virando uma env var sem confirmar com o usuário (é decisão de produto
-   sobre como super-admin é definido, não só refactor técnico).
+1. ~~JWT sem verificação de assinatura~~ — **resolvido em 2026-08-17**.
+   `api/gemini.ts::verifyFirebaseIdToken` agora verifica a assinatura RS256
+   de verdade via `jose` contra o JWKS público do Google, sem precisar de
+   `firebase-admin`/service account. Detalhe completo em `padrao-prompt-ia`.
+   `firebase-admin` continua instalado e sem uso — não foi o caminho
+   escolhido (a verificação por JWKS público é mais simples de rodar no
+   Vercel sem gerenciar credencial de serviço), mas segue reservado caso
+   uma necessidade futura de Firestore Admin (bypass de regra) apareça.
+2. ~~Super-admin hardcoded em 3 lugares~~ — **parcialmente resolvido em
+   2026-08-17**. Era na verdade 7 arquivos no cliente (não 3 — número
+   corrigido nesta revisão), todos agora centralizados em
+   `src/config/superAdmin.ts` (`SUPER_ADMIN_EMAIL`,
+   `isSuperAdminEmail(email)`). `firestore.rules` (`isSuperAdminEmail()`
+   da regra, função própria da linguagem) **continua com sua própria
+   cópia** — não dá pra eliminar sem custom claims via Admin SDK (exige
+   credencial de serviço, fora de escopo desta fase). Se o e-mail mudar,
+   ainda são 2 lugares a tocar: `src/config/superAdmin.ts` e
+   `firestore.rules`, não mais 7+1.
 3. **`firestore.rules.test.ts` nunca existiu** apesar de `security_spec.md`
-   mencionar a intenção de criar — ver skill `padrao-teste`.
+   mencionar a intenção de criar — ainda em aberto, ver skill
+   `padrao-teste`.
 
 ## Regra de ouro
 

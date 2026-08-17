@@ -65,11 +65,13 @@ Todo campo editável das 8 etapas segue debounce de 3000ms +
 `updateCurrentStudy` (ver `StudyStep.tsx`), com salvamento manual disponível
 também. Não introduzir um segundo mecanismo de autosave.
 
-### 10. Super-admin hardcoded em 3 lugares
+### 10. Super-admin — fonte única no cliente, regra separada
 
-`escoladetradersead@gmail.com` aparece em `firestore.rules`,
-`src/context/AuthContext.tsx` e `src/components/AuthRoutes.tsx`/`Layout.tsx`
-simultaneamente. Trocar exige tocar os três — ver skill
+`escoladetradersead@gmail.com` vive em `src/config/superAdmin.ts`
+(`SUPER_ADMIN_EMAIL`/`isSuperAdminEmail()`) — importado por todo componente
+que precisa dessa checagem, nunca mais copiado como string literal.
+`firestore.rules` continua com sua própria cópia (linguagem própria, não
+importa TS). Trocar esse e-mail exige tocar os dois — ver skill
 `padrao-firestore-rules`.
 
 ### 11. Armadilha real já encontrada: animações "no-op"

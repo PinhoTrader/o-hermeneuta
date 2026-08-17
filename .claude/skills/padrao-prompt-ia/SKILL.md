@@ -72,24 +72,65 @@ adicionar o truncamento correspondente em `sanitizeStudy` (ver limites
 espelhados em `padrao-firestore-rules`, mas aqui é limite de *prompt*, não de
 gravação no Firestore — podem divergir).
 
-## ⚠️ Gap real: quota é `Map` em memória, não confiável em produção
+## Quota — resolvido em 2026-08-17 para usuários autenticados
 
-`quotaStore` é um `Map` no escopo do módulo. Em Vercel serverless, cada
-instância fria tem seu próprio `Map` — a quota diária de 5/30 **não é
-garantida entre invocações diferentes**, só dentro de uma mesma instância
-"quente". Isso não é um bug a "corrigir" silenciosamente: trocar para um
-store persistente (Firestore, Redis) é uma mudança de arquitetura, decisão
-do usuário. Ao ser questionado sobre confiabilidade de quota, apontar este
-gap em vez de assumir que já está resolvido pelo `aiUsageService.ts`
-client-side (que é só telemetria/limite de UX, não enforcement real).
+`reserveQuota` bifurca por `identity.kind`:
+- **`guest`**: continua em `guestQuotaStore` (`Map` no escopo do módulo) —
+  limitação aceita e permanente, porque convidado não tem UID Firebase
+  durável pra persistir contra. Em Vercel serverless, cada instância fria
+  tem seu próprio `Map`, então a quota de convidado (5/dia) só é confiável
+  dentro de uma mesma instância "quente". Isso é conhecido, não é bug.
+- **`user`**: `reserveUserQuota` lê e grava na coleção `aiUsage` do
+  Firestore (mesma coleção que `aiUsageService.ts` usa no cliente), num
+  documento reservado `{uid}_daily_{yyyy-mm-dd}` com `studyId:
+  '__daily_quota__'` — reaproveita o schema já validado em
+  `firestore.rules` (nenhuma regra nova foi necessária). A chamada é feita
+  via API REST do Firestore, autenticada com o **próprio ID token do
+  usuário** (já verificado de verdade, ver seção "Identidade" abaixo) —
+  sem precisar de credencial de admin. Grava `lastQueryAt` via
+  `updateTransforms: [{ fieldPath: 'lastQueryAt', setToServerValue:
+  'REQUEST_TIME' }]`, o equivalente de baixo nível ao `serverTimestamp()`
+  do SDK — necessário porque a regra exige `incoming().lastQueryAt ==
+  request.time` exatamente. Falha de leitura/escrita no Firestore é tratada
+  como "fail closed" (nega a requisição, não abre exceção).
+
+**Limitação conhecida e aceita**: não há transação — duas requisições
+simultâneas do mesmo usuário podem ler a mesma contagem antes de qualquer
+uma commitar, permitindo passar do limite por 1 em concorrência rara. Dado
+o volume baixo (30/dia, uso interativo de uma pessoa por vez), não foi
+implementada transação Firestore (`:beginTransaction`) para isso — se abuso
+real for observado, é o próximo passo natural.
+
+Testes em `src/test/geminiSecurity.test.ts` cobrem o formato exato da
+chamada REST (mock de `fetch`) — qualquer mudança no wire format do
+Firestore deve manter esses testes passando.
 
 ## Identidade da requisição (`getIdentity`)
 
-Usuário autenticado: `Authorization: Bearer <idToken>`, decodificado sem
-verificar assinatura (ver gap de segurança em `padrao-firestore-rules`).
-Convidado: header `X-Hermeneuta-Guest-Id`, regex
+Usuário autenticado: `Authorization: Bearer <idToken>`, verificado de
+verdade via `verifyFirebaseIdToken` (assinatura RS256 contra o JWKS público
+do Google, `issuer`/`audience`/`exp` validados por `jose`) — ver seção
+"JWT" abaixo. Convidado: header `X-Hermeneuta-Guest-Id`, regex
 `^guest_[a-zA-Z0-9_-]{4,64}$`. Qualquer rota nova de IA precisa aceitar os
 dois caminhos de identidade — não assumir que todo usuário está logado.
+
+## JWT — verificação real de assinatura, resolvido em 2026-08-17
+
+`verifyFirebaseIdToken` (`api/gemini.ts`) substitui o antigo
+`decodeJwtPayload` (que só fazia base64-decode do payload, sem checar nada
+criptográfico). Agora usa `jose` (`createRemoteJWKSet` + `jwtVerify`)
+contra as chaves públicas do Google
+(`https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com`),
+validando assinatura RS256, `issuer`
+(`https://securetoken.google.com/<projectId>`), `audience` (`projectId`) e
+expiração. **Não precisa de service account** — o `projectId` usado vem de
+`firebase-applet-config.json` (já público). `jose` é dependência direta do
+projeto (antes só transitiva via `firebase-admin` → `jwks-rsa`).
+
+Testes em `src/test/geminiSecurity.test.ts` mockam `jose` (`vi.mock('jose',
+...)`) para testar a lógica de `verifyFirebaseIdToken`/`getIdentity` sem
+rede real — qualquer mudança nessa função deve manter esses testes
+passando.
 
 ## Frontend (`src/services/geminiService.ts`)
 

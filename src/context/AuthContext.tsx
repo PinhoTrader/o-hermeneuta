@@ -20,6 +20,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { isSuperAdminEmail } from '../config/superAdmin';
 
 import { UserProfile, UserRole } from '../types';
 
@@ -148,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               await setDoc(userRef, userProfile);
             } else {
               // New user, not pre-registered
-              const isAdminEmail = firebaseUser.email === 'escoladetradersead@gmail.com';
+              const isAdminEmail = isSuperAdminEmail(firebaseUser.email);
               
               userProfile = {
                 uid: firebaseUser.uid,
@@ -166,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           } else {
             const data = userSnap.data();
-            const isAdminEmail = firebaseUser.email === 'escoladetradersead@gmail.com';
+            const isAdminEmail = isSuperAdminEmail(firebaseUser.email);
             
             userProfile = {
               ...data,

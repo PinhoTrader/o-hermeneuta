@@ -52,17 +52,27 @@ corrigir de improviso.
    provavelmente não funciona em `npm run dev` local até o usuário
    configurar a chave (`vercel env pull` não traz segredos re-encriptados
    utilizáveis localmente sem a chave real).
-8. **Rate limit do Instrutor de IA é in-memory** (ver `padrao-prompt-ia`) —
-   não confiável entre invocações serverless frias na Vercel.
+8. ~~Rate limit do Instrutor de IA é in-memory~~ — **resolvido em
+   2026-08-17**, ver `padrao-prompt-ia`. Usuários autenticados agora têm
+   quota persistida no Firestore (coleção `aiUsage`, doc reservado
+   `{uid}_daily_{data}`); convidados continuam em memória por não terem
+   identidade durável (limitação aceita, documentada, não é regressão).
 9. **Divergência de schema `Study`**: `questions`/`context` foram desenhados
    como objetos estruturados em `firebase-blueprint.json`, mas o MVP real
    usa texto livre (`questionsText`, `contextText`) — `firestore.rules` e
    `types.ts` já refletem a versão texto-livre (fonte da verdade), o
    blueprint é o documento desatualizado.
-10. **JWT decodificado sem verificar assinatura** em `api/gemini.ts` — ver
-    `padrao-firestore-rules`, gap de segurança real, não corrigir sem
-    confirmação (implica trocar fluxo de auth da rota).
-11. **Super-admin hardcoded em 3 lugares** — ver `padrao-firestore-rules`.
+10. ~~JWT decodificado sem verificar assinatura~~ em `api/gemini.ts` —
+    **resolvido em 2026-08-17**, ver `padrao-prompt-ia`. Verificação real de
+    assinatura RS256 via `jose` + JWKS público do Google, sem precisar de
+    service account.
+11. ~~Super-admin hardcoded em 3+ lugares~~ — **resolvido em 2026-08-17**
+    para o lado do cliente: centralizado em `src/config/superAdmin.ts`
+    (eram na verdade 7 arquivos, não 3 — número corrigido nesta revisão).
+    `firestore.rules` continua com sua própria cópia por ser linguagem
+    própria (não importa TS) — ver `padrao-firestore-rules`. Eliminar essa
+    última cópia exigiria custom claims via Firebase Admin SDK (credencial
+    de serviço), fora do escopo desta fase.
 12. **`firestore.rules.test.ts` nunca criado** apesar de intenção declarada
     em `security_spec.md` — ver `padrao-teste`.
 13. **Só existe `doc/stack/03_...md`**, sem `01_`/`02_` — sugere documentos

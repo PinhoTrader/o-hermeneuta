@@ -24,6 +24,7 @@ import {
 import { UserProfile, UserRole } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { isSuperAdminEmail } from '../config/superAdmin';
 
 export default function AdminPanel() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -304,7 +305,7 @@ export default function AdminPanel() {
                         </Button>
                       )}
                       
-                      {user.email !== 'escoladetradersead@gmail.com' && (
+                      {!isSuperAdminEmail(user.email) && (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => openEditModal(user)}
