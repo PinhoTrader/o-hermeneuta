@@ -73,8 +73,15 @@ corrigir de improviso.
     própria (não importa TS) — ver `padrao-firestore-rules`. Eliminar essa
     última cópia exigiria custom claims via Firebase Admin SDK (credencial
     de serviço), fora do escopo desta fase.
-12. **`firestore.rules.test.ts` nunca criado** apesar de intenção declarada
-    em `security_spec.md` — ver `padrao-teste`.
+12. ~~`firestore.rules.test.ts` nunca criado~~ — **resolvido em 2026-08-17**,
+    ver `padrao-teste`. Exigiu instalar Java (Temurin 21, via winget) e
+    `firebase-tools` nesta máquina — registrado porque é um requisito de
+    ambiente, não só de `npm install`, para quem for rodar `npm run
+    test:rules` numa máquina nova.
+14. **Novo, achado ao escrever os testes de regra**: `isSuperAdminEmail()`
+    em `firestore.rules` usa `request.auth.token.email` (acesso direto) em
+    vez de `.get('email', '')` — um token sem a claim `email` faz a regra
+    lançar erro de avaliação em vez de negar limpo. Ver `padrao-firestore-rules`.
 13. **Só existe `doc/stack/03_...md`**, sem `01_`/`02_` — sugere documentos
     de arquitetura/modelo de dados que nunca foram escritos ou foram
     removidos. Não presumir que existem em outro lugar.

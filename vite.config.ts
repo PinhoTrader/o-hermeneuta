@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
+import { configDefaults } from 'vitest/config';
 
 export default defineConfig(() => {
   return {
@@ -16,6 +17,9 @@ export default defineConfig(() => {
       globals: true,
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
+      // Runs only via `npm run test:rules` (vitest.rules.config.ts), which needs
+      // the Firestore Emulator up - see padrao-teste skill.
+      exclude: [...configDefaults.exclude, 'src/test/firestore.rules.test.ts'],
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

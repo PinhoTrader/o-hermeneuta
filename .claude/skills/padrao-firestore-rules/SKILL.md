@@ -92,9 +92,18 @@ cliente.
    credencial de serviço, fora de escopo desta fase). Se o e-mail mudar,
    ainda são 2 lugares a tocar: `src/config/superAdmin.ts` e
    `firestore.rules`, não mais 7+1.
-3. **`firestore.rules.test.ts` nunca existiu** apesar de `security_spec.md`
-   mencionar a intenção de criar — ainda em aberto, ver skill
-   `padrao-teste`.
+3. ~~`firestore.rules.test.ts` nunca existiu~~ — **resolvido em 2026-08-17**,
+   ver skill `padrao-teste`. 18 testes contra o Firestore Emulator real
+   (`npm run test:rules`), cobrindo `users`, `studies`, `aiUsage` e `groups`.
+4. **`isSuperAdminEmail()` usa acesso direto de propriedade**
+   (`request.auth.token.email`) em vez de `.get('email', '')`. Descoberto
+   escrevendo os testes do item 3: um token de auth sem a claim `email` faz
+   qualquer regra que dependa de `isApproved()`/`isAdmin()` (ex: `groups`)
+   lançar um erro de avaliação em vez de retornar `false` de forma limpa.
+   Não quebra em produção hoje (o único provedor, Google, sempre retorna
+   e-mail), mas é frágil a um provedor futuro sem essa garantia. Não
+   corrigido — sinalizar ao usuário antes de tocar, é mudança em
+   `firestore.rules`.
 
 ## Regra de ouro
 
