@@ -102,12 +102,14 @@ projeto (a lista de testes acima) e o que é decisão de engenharia sua (ex:
 rodar Vitest a cada PR vs só local) — perguntar ao usuário antes de assumir
 gate de deploy obrigatório, já que hoje não existe nenhum.
 
-## `firebase-admin` está instalado mas não é usado
+## `firebase-admin` foi removido — 2026-08-19
 
-Confirmado via grep em `src/` e `api/` — zero referências. A verificação de
-JWT (Fase 1, 2026-08-17) acabou não usando `firebase-admin` — foi resolvida
-com `jose` + JWKS público do Google, sem precisar de service account (ver
-`padrao-prompt-ia`). `firebase-admin` segue instalado e sem uso, reservado
-para se aparecer uma necessidade real de Firestore Admin (bypass de regra a
-partir do servidor) — não instalar um segundo SDK admin do Firebase se isso
-acontecer.
+Estava instalado mas sem nenhuma referência em `src/`/`api/` (confirmado via
+grep). A verificação de JWT (Fase 1, 2026-08-17) acabou não usando
+`firebase-admin` — foi resolvida com `jose` + JWKS público do Google, sem
+precisar de service account (ver `padrao-prompt-ia`). Removido de
+`dependencies` em `package.json` nesta data (ver `precedencia-e-gaps` gap 2),
+com `npm install` regenerando `package-lock.json` e `npm run lint`/`npm run
+test` confirmados limpos depois. Se surgir necessidade real de Firestore
+Admin (bypass de regra a partir do servidor) no futuro, reinstalar então —
+não presumir que já está disponível.

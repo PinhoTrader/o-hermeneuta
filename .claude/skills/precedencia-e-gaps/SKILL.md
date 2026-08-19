@@ -27,11 +27,17 @@ corrigir de improviso.
    Studio Build~~ — **resolvido em 2026-08-17**, reescrito para refletir a
    stack real (Vercel + Firestore não-default + deploy automático via
    Git↔Vercel).
-2. **`firebase-admin` e `express`** estão em `dependencies` do
-   `package.json` sem nenhuma referência em `src/`/`api/`. Remover é seguro
-   tecnicamente, mas confirmar com o usuário antes (podem ser plano para uso
-   futuro — `firebase-admin` inclusive resolveria o gap de JWT sem
-   verificação, ver `padrao-firestore-rules`).
+2. ~~`firebase-admin` e `express` estão em `dependencies` do `package.json`
+   sem nenhuma referência em `src/`/`api/`~~ — **resolvido em 2026-08-19**,
+   ver `package.json`. `express`/`@types/express` já tinham sido removidos
+   na Fase 0 (commit `c6837f2`, 2026-08-16); nesta revisão confirmou-se de
+   novo via grep (zero referências em `src/`/`api/`) e removeu-se também
+   `firebase-admin` de `dependencies`, com `npm install` regenerando
+   `package-lock.json` e `npm run lint`/`npm run test` (12 arquivos, 41
+   testes) passando limpos depois da remoção. A verificação de JWT (Fase 1)
+   já havia sido resolvida sem precisar de `firebase-admin` — ver
+   `padrao-prompt-ia`; se surgir necessidade real de Firestore Admin no
+   futuro, reinstalar então, não deixar dependência morta reservada.
 3. ~~`handleFirestoreError`/`OperationType` duplicados~~ em 4 arquivos de
    service — **resolvido em 2026-08-17**. `adminService.ts`,
    `groupService.ts` e `academyService.ts` agora importam de

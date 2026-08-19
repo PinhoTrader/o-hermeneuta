@@ -110,10 +110,10 @@ mudança consulte a fonte certa antes de escrever código.
 | `especialista-frontend` | Páginas/componentes React, roteamento, context, hooks. |
 | `especialista-firestore` | `firestore.rules`, modelo de dados, `src/services/*`. |
 | `especialista-ia` | `api/gemini.ts`, prompt do Instrutor, contrato JSON, quotas — nunca decide conteúdo doutrinário sozinho. |
-| `especialista-pipeline` | Vitest, lint, pipeline/deploy. |
+| `especialista-pipeline` | Vitest, lint, pipeline/deploy; mantém as skills `padrao-teste` e `padrao-deploy`. |
 
 **Skills:** `padrao-design`, `padrao-componente-frontend`,
-`padrao-firestore-rules`, `padrao-prompt-ia`, `padrao-teste`,
+`padrao-firestore-rules`, `padrao-prompt-ia`, `padrao-teste`, `padrao-deploy`,
 `precedencia-e-gaps` — cada uma consultada pelo agente correspondente antes
 de escrever o tipo de arquivo relevante. A skill `precedencia-e-gaps` é a
 lista viva dos 13 gaps encontrados no raio-X inicial (2026-08-16) — qualquer

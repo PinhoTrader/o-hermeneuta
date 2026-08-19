@@ -62,6 +62,7 @@ type MentorMethodStep =
   | 'ideia_principal'
   | 'intento_transformador'
   | 'teologia_biblica'
+  | 'rota_direta'
   | null;
 type MentorBase = 'texto_do_usuario' | 'texto_biblico_do_contexto' | 'ambos';
 
@@ -166,7 +167,7 @@ Use internamente estes princípios para orientar sua resposta:
 2. Boas Perguntas: ele está apenas nas perguntas básicas ou já avançou para perguntas vigorosas?
 3. Gênero: o usuário percebeu o tipo de texto, o tom do autor e o efeito pretendido no leitor?
 4. Estrutura: o usuário identificou unidades de pensamento, progressão, contraste, repetição, clímax, conexão ou mudança de direção?
-5. Instruções de Viagem: o usuário tentou fazer aplicação direta sem passar pelo contexto original? Se sim, corrija isso como "Rota Direta".
+5. Instruções de Viagem: o usuário tentou fazer aplicação direta sem passar pelo contexto original? Se sim, corrija isso como "Rota Direta" (etapaMetodo: rota_direta).
 6. Ideia Principal e Intento Transformador: o usuário consegue dizer o que o autor está dizendo e por que o autor está dizendo isso?
 7. Teologia Bíblica: quando houver base suficiente, ajude o usuário a enxergar como a passagem se conecta à história da redenção e ao foco e cumprimento em Cristo. Nunca force essa conexão.
 
@@ -212,7 +213,7 @@ Responda sempre em JSON válido, sem Markdown, sem bloco de código e sem texto 
   "feedback": "resposta clara, natural e encorajadora",
   "proximaPergunta": "uma única pergunta vigorosa e objetiva, ou string vazia quando não houver pergunta",
   "dica": "opcional; use apenas se o usuário demonstrar dificuldade",
-  "etapaMetodo": "linha" | "boas_perguntas" | "genero" | "estrutura" | "contexto" | "ideia_principal" | "intento_transformador" | "teologia_biblica" | null,
+  "etapaMetodo": "linha" | "boas_perguntas" | "genero" | "estrutura" | "contexto" | "ideia_principal" | "intento_transformador" | "teologia_biblica" | "rota_direta" | null,
   "baseUsada": "texto_do_usuario" | "texto_biblico_do_contexto" | "ambos"
 }
 
@@ -503,15 +504,15 @@ Texto Biblico: ${study.bibleSelection?.book} ${study.bibleSelection?.chapter}:${
 Conteudo do Texto: ${study.bibleSelection?.text}
 
 Progresso Atual:
-- Observacoes: ${study.observations || 'Nenhuma'}
-- Perguntas: ${study.questionsText || study.questions?.map(q => q.content).join('; ') || 'Nenhuma'}
-- Genero: ${study.genre || 'Nao definido'}
-- Estrutura: ${study.structure || 'Nao definida'}
-- Contexto: ${study.contextText || JSON.stringify(study.context) || 'Nao definido'}
-- Ideia Principal: ${study.mainIdea || 'Nao definida'}
-- Intento Transformador: ${study.transformingIntent || 'Nao definido'}
-- Esboco: ${study.sermonOutline || 'Nao definido'}
-- Sermao: ${study.detailedSermon || 'Nao definido'}
+- Observacoes: <observacoes_usuario>${study.observations || 'Nenhuma'}</observacoes_usuario>
+- Perguntas: <perguntas_usuario>${study.questionsText || study.questions?.map(q => q.content).join('; ') || 'Nenhuma'}</perguntas_usuario>
+- Genero: <genero_usuario>${study.genre || 'Nao definido'}</genero_usuario>
+- Estrutura: <estrutura_usuario>${study.structure || 'Nao definida'}</estrutura_usuario>
+- Contexto: <contexto_usuario>${study.contextText || JSON.stringify(study.context) || 'Nao definido'}</contexto_usuario>
+- Ideia Principal: <ideia_principal_usuario>${study.mainIdea || 'Nao definida'}</ideia_principal_usuario>
+- Intento Transformador: <intento_transformador_usuario>${study.transformingIntent || 'Nao definido'}</intento_transformador_usuario>
+- Esboco: <esboco_usuario>${study.sermonOutline || 'Nao definido'}</esboco_usuario>
+- Sermao: <sermao_usuario>${study.detailedSermon || 'Nao definido'}</sermao_usuario>
 `;
 }
 
@@ -519,9 +520,9 @@ function getInstructorContext(study: Study) {
   return `
 Texto Biblico: ${study.bibleSelection?.book} ${study.bibleSelection?.chapter}:${study.bibleSelection?.verseStart}-${study.bibleSelection?.verseEnd} (${study.bibleSelection?.translation})
 Conteudo do Texto: ${study.bibleSelection?.text}
-Observacoes do Usuario: ${study.observations || 'Nenhuma'}
-Perguntas do Usuario: ${study.questionsText || 'Nenhuma'}
-Contexto do Usuario: ${study.contextText || 'Nenhum'}
+Observacoes do Usuario: <observacoes_usuario>${study.observations || 'Nenhuma'}</observacoes_usuario>
+Perguntas do Usuario: <perguntas_usuario>${study.questionsText || 'Nenhuma'}</perguntas_usuario>
+Contexto do Usuario: <contexto_usuario>${study.contextText || 'Nenhum'}</contexto_usuario>
 `;
 }
 
@@ -543,6 +544,7 @@ function isMentorMethodStep(value: unknown): value is MentorMethodStep {
     value === 'ideia_principal' ||
     value === 'intento_transformador' ||
     value === 'teologia_biblica' ||
+    value === 'rota_direta' ||
     value === null
   );
 }
@@ -599,26 +601,59 @@ function extractJsonObject(rawText: string) {
   return null;
 }
 
+// Non-blocking style-drift telemetry: the system prompt asks for at most one main
+// question and a feedback length in the 80-220 word range. We never reject or alter
+// a valid response because of this - it's only logged so drift can be noticed over time.
+function checkMentorStyleDrift(parsed: MentorStructuredResponse) {
+  const questionMarks = (parsed.proximaPergunta.match(/\?/g) || []).length;
+  if (questionMarks > 1) {
+    console.warn('parseMentorResponse: proximaPergunta com mais de 1 "?" (possível múltiplas perguntas)');
+  }
+
+  const wordCount = parsed.feedback.trim().split(/\s+/).filter(Boolean).length;
+  if (wordCount < 60 || wordCount > 260) {
+    console.warn('parseMentorResponse: feedback fora da faixa esperada de palavras (60-260)');
+  }
+}
+
 function parseMentorResponse(rawText: string): MentorStructuredResponse | null {
   const jsonText = extractJsonObject(rawText);
-  if (!jsonText) return null;
+  if (!jsonText) {
+    console.error('parseMentorResponse: JSON ausente');
+    return null;
+  }
 
   try {
     const parsed = JSON.parse(jsonText) as Partial<MentorStructuredResponse>;
     const feedback = normalizeOptionalText(parsed.feedback);
     const proximaPergunta = typeof parsed.proximaPergunta === 'string' ? parsed.proximaPergunta.trim() : '';
 
-    if (
-      !feedback ||
-      !isMentorDeviation(parsed.desvioDetectado) ||
-      !isMentorSeverity(parsed.gravidade) ||
-      !isMentorMethodStep(parsed.etapaMetodo) ||
-      !isMentorBase(parsed.baseUsada)
-    ) {
+    if (!feedback) {
+      console.error('parseMentorResponse: campo feedback ausente/vazio');
       return null;
     }
 
-    return {
+    if (!isMentorDeviation(parsed.desvioDetectado)) {
+      console.error('parseMentorResponse: desvioDetectado inválido');
+      return null;
+    }
+
+    if (!isMentorSeverity(parsed.gravidade)) {
+      console.error('parseMentorResponse: gravidade inválida');
+      return null;
+    }
+
+    if (!isMentorMethodStep(parsed.etapaMetodo)) {
+      console.error('parseMentorResponse: etapaMetodo inválido');
+      return null;
+    }
+
+    if (!isMentorBase(parsed.baseUsada)) {
+      console.error('parseMentorResponse: baseUsada inválido');
+      return null;
+    }
+
+    const result: MentorStructuredResponse = {
       desvioDetectado: parsed.desvioDetectado,
       gravidade: parsed.gravidade,
       acertoParcial: normalizeOptionalText(parsed.acertoParcial),
@@ -628,9 +663,33 @@ function parseMentorResponse(rawText: string): MentorStructuredResponse | null {
       etapaMetodo: parsed.etapaMetodo,
       baseUsada: parsed.baseUsada,
     };
+
+    checkMentorStyleDrift(result);
+
+    return result;
   } catch {
+    console.error('parseMentorResponse: falha ao fazer JSON.parse');
     return null;
   }
+}
+
+// Common Portuguese refusal prefixes/phrases a model might use instead of following the
+// JSON contract. These leak raw and tone-less to the user unless caught here - matched
+// case-insensitively against the start of the (fenced-stripped) text.
+const REFUSAL_PATTERNS = [
+  /^(desculpe|sinto muito|lamento)[,.]? (mas )?(não posso|não consigo)/i,
+  /não posso ajudar/i,
+  /não consigo ajudar/i,
+  /não tenho permissão/i,
+  /não tenho a capacidade de/i,
+  /como (um |uma )?(modelo de linguagem|ia|inteligência artificial)/i,
+  /não é apropriado/i,
+  /não posso (fornecer|responder|prosseguir|continuar) com (isso|essa|esse|isto)/i,
+  /não estou autorizado/i,
+];
+
+function looksLikeModelRefusal(cleaned: string) {
+  return REFUSAL_PATTERNS.some(pattern => pattern.test(cleaned));
 }
 
 function cleanFallbackText(rawText: string) {
@@ -639,7 +698,7 @@ function cleanFallbackText(rawText: string) {
     .replace(/\s*```$/i, '')
     .trim();
 
-  if (!cleaned || cleaned.startsWith('{') || cleaned.includes('"desvioDetectado"')) {
+  if (!cleaned || cleaned.startsWith('{') || cleaned.includes('"desvioDetectado"') || looksLikeModelRefusal(cleaned)) {
     return GENERIC_ERROR_MESSAGE;
   }
 
@@ -714,7 +773,7 @@ async function generateText(body: GeminiRequestBody) {
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: [{ role: 'user', parts: [{ text: `${getInstructorContext(study)}\n\nPergunta do Usuario: ${question}` }] }],
+      contents: [{ role: 'user', parts: [{ text: `${getInstructorContext(study)}\n\nPergunta do Usuario: <pergunta_usuario>${question}</pergunta_usuario>` }] }],
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.7,
@@ -729,7 +788,7 @@ async function generateText(body: GeminiRequestBody) {
     model: modelName,
     contents: [
       ...history.map(h => ({ role: h.role, parts: [{ text: h.content }] })),
-      { role: 'user' as const, parts: [{ text: message }] },
+      { role: 'user' as const, parts: [{ text: `<mensagem_usuario>${message}</mensagem_usuario>` }] },
     ],
     config: {
       systemInstruction: `${SYSTEM_INSTRUCTION}\nInteraja em um chat geral sobre o método, sem entregar interpretação final.`,
