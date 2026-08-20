@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { StudyProvider, useStudy } from './context/StudyContext';
 import { ProtectedRoute, AdminRoute } from './components/AuthRoutes';
 import { Button } from './components/ui/Button';
+import { Input } from './components/ui/Input';
 import { BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { fadeZoom } from './lib/motionVariants';
@@ -14,6 +15,9 @@ const AcademyPage = React.lazy(() => import('./pages/AcademyPage'));
 const StudyController = React.lazy(() => import('./pages/StudyController'));
 const GroupsPage = React.lazy(() => import('./pages/GroupsPage'));
 const AdminPanel = React.lazy(() => import('./pages/AdminPanel'));
+const Account = React.lazy(() => import('./pages/Account'));
+const Settings = React.lazy(() => import('./pages/Settings'));
+const EditProfile = React.lazy(() => import('./pages/EditProfile'));
 
 function PageFallback() {
   return (
@@ -57,20 +61,16 @@ function NewStudyRoute() {
         </div>
 
         <form onSubmit={handleCreate} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-slate-400 px-1">Título do Estudo</label>
-            <input 
-              type="text"
-              autoFocus
-              placeholder="Ex: Epístola aos Efésios - Cap 1"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={isCreating}
-            />
-          </div>
-
-          {error && <p className="text-xs text-red-500 bg-red-50 p-2 rounded-lg">{error}</p>}
+          <Input
+            label="Título do Estudo"
+            type="text"
+            autoFocus
+            placeholder="Ex: Epístola aos Efésios - Cap 1"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            disabled={isCreating}
+            error={error || undefined}
+          />
 
           <div className="flex gap-3 pt-2">
             <Button 
@@ -140,6 +140,24 @@ export default function App() {
                 <AdminRoute>
                   <AdminPanel />
                 </AdminRoute>
+              } />
+
+              <Route path="/account" element={
+                <ProtectedRoute>
+                  <Account />
+                </ProtectedRoute>
+              } />
+
+              <Route path="/settings" element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              } />
+
+              <Route path="/edit-profile" element={
+                <ProtectedRoute>
+                  <EditProfile />
+                </ProtectedRoute>
               } />
 
               <Route path="*" element={<Navigate to="/" />} />

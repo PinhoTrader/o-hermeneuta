@@ -1,20 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  Users, 
-  Shield, 
-  CheckCircle, 
-  XCircle, 
-  UserPlus, 
-  Mail, 
-  Phone, 
+  Users,
+  Shield,
+  CheckCircle,
+  XCircle,
+  UserPlus,
   Search,
   UserCheck,
   Trash2,
   Edit2
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Modal } from '../components/ui/Modal';
+import { Input } from '../components/ui/Input';
+import { Badge } from '../components/ui/Badge';
 import { motion } from 'framer-motion';
-import { fade, fadeZoom } from '../lib/motionVariants';
+import { fade } from '../lib/motionVariants';
 import {
   getAllUsers, 
   updateUserRole, 
@@ -180,7 +182,7 @@ export default function AdminPanel() {
 
       {/* Stats Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="glass-card p-6 rounded-3xl bg-white border border-slate-200">
+        <Card variant="solid" className="p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600">
               <Users size={24} />
@@ -190,8 +192,8 @@ export default function AdminPanel() {
               <p className="text-2xl font-bold">{users.length}</p>
             </div>
           </div>
-        </div>
-        <div className="glass-card p-6 rounded-3xl bg-white border border-slate-200 text-brand-primary">
+        </Card>
+        <Card variant="solid" className="p-6 text-brand-primary">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
               <Shield size={24} />
@@ -201,8 +203,8 @@ export default function AdminPanel() {
               <p className="text-2xl font-bold">{users.filter(u => u.role === 'professor').length}</p>
             </div>
           </div>
-        </div>
-        <div className="glass-card p-6 rounded-3xl bg-white border border-slate-200 text-amber-600">
+        </Card>
+        <Card variant="solid" className="p-6 text-amber-600">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600">
               <UserCheck size={24} />
@@ -212,18 +214,18 @@ export default function AdminPanel() {
               <p className="text-2xl font-bold">{users.filter(u => !u.isApproved).length}</p>
             </div>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <Card variant="solid" className="overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between gap-4">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar por nome ou e-mail..." 
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border-none text-sm outline-none focus:ring-2 focus:ring-brand-primary/20"
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" size={18} />
+            <Input
+              type="text"
+              placeholder="Buscar por nome ou e-mail..."
+              className="pl-10"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
@@ -279,15 +281,15 @@ export default function AdminPanel() {
                   </td>
                   <td className="px-6 py-4">
                     {user.isApproved ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-wider">
+                      <Badge tone="success">
                         <CheckCircle size={12} />
                         Ativo
-                      </span>
+                      </Badge>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold uppercase tracking-wider">
+                      <Badge tone="warning">
                         <XCircle size={12} />
                         Pendente
-                      </span>
+                      </Badge>
                     )}
                   </td>
                   <td className="px-6 py-4 text-xs text-slate-500">
@@ -333,142 +335,113 @@ export default function AdminPanel() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       {/* New User Modal */}
-      {isModalOpen && (
-        <motion.div {...fade(0.3)} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
-          <motion.div {...fadeZoom(0.3)} className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold font-serif">
-                {editingUser ? 'Editar Usuário' : `Cadastrar ${selectedRole === 'professor' ? 'Mentor' : 'Aluno'}`}
-              </h2>
-              <button 
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setEditingUser(null);
-                }} 
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <XCircle size={24} />
-              </button>
-            </div>
-            <form onSubmit={handleRegisterUser} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Nome Completo</label>
-                <div className="relative">
-                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                  <input 
-                    required
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 rounded-xl border-none outline-none focus:ring-2 focus:ring-brand-primary/20"
-                    placeholder="Ex: João da Silva"
-                    value={newUser.name}
-                    onChange={e => setNewUser({...newUser, name: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Email do Google</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                  <input 
-                    required
-                    type="email"
-                    className={`w-full pl-10 pr-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-brand-primary/20 ${
-                      editingUser ? 'bg-slate-50/50 text-slate-400 cursor-not-allowed' : 'bg-slate-50 text-slate-900'
-                    }`}
-                    placeholder="usuario@gmail.com"
-                    value={newUser.email}
-                    onChange={e => setNewUser({...newUser, email: e.target.value})}
-                    readOnly={!!editingUser}
-                  />
-                </div>
-                {editingUser && (
-                  <p className="text-[10px] text-slate-400 italic">O e-mail não pode ser alterado por segurança.</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Telefone / Contato</label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                  <input 
-                    required
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 rounded-xl border-none outline-none focus:ring-2 focus:ring-brand-primary/20"
-                    placeholder="(00) 00000-0000"
-                    value={newUser.phone}
-                    onChange={e => setNewUser({...newUser, phone: e.target.value})}
-                  />
-                </div>
-              </div>
-              {formError && (
-                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-                  {formError}
-                </p>
-              )}
-              <div className="pt-4 flex gap-4">
-                <Button 
-                  variant="outline" 
-                  className="flex-1" 
-                  type="button" 
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setEditingUser(null);
-                  }}
-                  disabled={submitting}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  className="flex-1" 
-                  type="submit" 
-                  loading={submitting}
-                >
-                  {editingUser ? 'Salvar Alterações' : 'Concluir Cadastro'}
-                </Button>
-              </div>
-              <p className="text-[10px] text-slate-400 text-center italic leading-relaxed">
-                Ao cadastrar um novo usuário por e-mail, ele terá acesso imediato e será vinculado automaticamente quando realizar o primeiro login com o Google.
-              </p>
-            </form>
-          </motion.div>
-        </motion.div>
-      )}
+      <Modal
+        open={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingUser(null);
+        }}
+        title={editingUser ? 'Editar Usuário' : `Cadastrar ${selectedRole === 'professor' ? 'Mentor' : 'Aluno'}`}
+      >
+        <form onSubmit={handleRegisterUser} className="space-y-4">
+          <Input
+            label="Nome Completo"
+            required
+            placeholder="Ex: João da Silva"
+            value={newUser.name}
+            onChange={e => setNewUser({...newUser, name: e.target.value})}
+          />
+          <Input
+            label="Email do Google"
+            required
+            type="email"
+            placeholder="usuario@gmail.com"
+            value={newUser.email}
+            onChange={e => setNewUser({...newUser, email: e.target.value})}
+            readOnly={!!editingUser}
+            className={editingUser ? 'bg-slate-50/50 text-slate-400 cursor-not-allowed' : ''}
+          />
+          {editingUser && (
+            <p className="text-[10px] text-slate-400 italic -mt-2">O e-mail não pode ser alterado por segurança.</p>
+          )}
+          <Input
+            label="Telefone / Contato"
+            required
+            placeholder="(00) 00000-0000"
+            value={newUser.phone}
+            onChange={e => setNewUser({...newUser, phone: e.target.value})}
+          />
+          {formError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+              {formError}
+            </p>
+          )}
+          <div className="pt-4 flex gap-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              type="button"
+              onClick={() => {
+                setIsModalOpen(false);
+                setEditingUser(null);
+              }}
+              disabled={submitting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1"
+              type="submit"
+              loading={submitting}
+            >
+              {editingUser ? 'Salvar Alterações' : 'Concluir Cadastro'}
+            </Button>
+          </div>
+          <p className="text-[10px] text-slate-400 text-center italic leading-relaxed">
+            Ao cadastrar um novo usuário por e-mail, ele terá acesso imediato e será vinculado automaticamente quando realizar o primeiro login com o Google.
+          </p>
+        </form>
+      </Modal>
 
       {/* Delete User Confirmation Modal */}
-      {userToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
-          <motion.div {...fadeZoom(0.2)} className="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl space-y-6">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-500">
-                <Trash2 size={32} />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold font-serif text-slate-900">Excluir Usuário?</h3>
-                <p className="text-sm text-slate-500">
-                  Tem certeza que deseja excluir <strong>{userToDelete.displayName || userToDelete.email}</strong>? Esta ação não pode ser desfeita.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <Button 
-                variant="outline" 
-                className="flex-1" 
-                onClick={() => setUserToDelete(null)}
-                disabled={!!actionLoading}
-              >
-                Cancelar
-              </Button>
-              <Button 
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white border-0"
-                onClick={() => handleDelete(userToDelete.uid)}
-                loading={actionLoading === userToDelete.uid}
-              >
-                Excluir
-              </Button>
-            </div>
-          </motion.div>
+      <Modal
+        open={!!userToDelete}
+        onClose={() => setUserToDelete(null)}
+        footer={
+          <>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setUserToDelete(null)}
+              disabled={!!actionLoading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white border-0"
+              onClick={() => userToDelete && handleDelete(userToDelete.uid)}
+              loading={actionLoading === userToDelete?.uid}
+            >
+              Excluir
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col items-center text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+            <Trash2 size={32} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold font-serif text-slate-900">Excluir Usuário?</h3>
+            <p className="text-sm text-slate-500">
+              Tem certeza que deseja excluir <strong>{userToDelete?.displayName || userToDelete?.email}</strong>? Esta ação não pode ser desfeita.
+            </p>
+          </div>
         </div>
-      )}
+      </Modal>
     </motion.div>
   );
 }

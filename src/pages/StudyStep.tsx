@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 import { Sparkles, Save, ChevronLeft, ChevronRight, HelpCircle, AlertTriangle } from 'lucide-react';
 import { getStageFeedback } from '../services/geminiService';
 import { fetchBibleText } from '../services/bibleService';
@@ -237,7 +238,7 @@ export default function StudyStep({ title, field, description, placeholder, meth
       {/* Right Column: AI Instructor */}
       <div className="space-y-6">
         <div className="sticky top-24 space-y-6">
-          <div className="glass-card p-6 rounded-2xl border-brand-primary/20 bg-brand-primary/[0.02]">
+          <Card variant="glass" className="p-6 rounded-2xl border-brand-primary/20 bg-brand-primary/[0.02]">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-brand-primary text-white flex items-center justify-center">
                 <Sparkles size={20} />
@@ -287,7 +288,7 @@ export default function StudyStep({ title, field, description, placeholder, meth
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </Card>
 
           {methodTip && (
             <div className="p-6 bg-amber-50 rounded-2xl border border-amber-200 shadow-sm relative overflow-hidden group">

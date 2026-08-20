@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
+import { StepTabs } from '../components/ui/StepTabs';
 import BibleSelection from './BibleSelection';
 import StudyStep from './StudyStep';
 import FinalReview from './FinalReview';
@@ -89,33 +90,20 @@ export default function StudyController() {
 
   return (
     <motion.div {...fade(0.5)} className="space-y-8 pb-20">
-      {/* Header Info */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-6">
-        <div>
-           <h1 className="text-xl font-bold text-slate-900">{currentStudy.title}</h1>
-           <p className="text-xs text-slate-500 font-medium">Progresso: {Math.round((currentStepIndex / (STEPS.length - 1)) * 100)}%</p>
+      {/* Header Info — escondido na etapa de Seleção para deixar a tela de escolha do texto limpa */}
+      {currentStep.id !== 'bible' && (
+        <div className="flex items-center justify-between border-b border-slate-200 pb-6">
+          <div>
+             <h1 className="text-xl font-bold text-slate-900">{currentStudy.title}</h1>
+             <p className="text-xs text-slate-500 font-medium">Progresso: {Math.round((currentStepIndex / (STEPS.length - 1)) * 100)}%</p>
+          </div>
+          <StepTabs
+            steps={STEPS.map((step) => step.label)}
+            activeIndex={currentStepIndex}
+            onSelect={(idx) => setCurrentStepIndex(idx)}
+          />
         </div>
-        <div className="hidden md:flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
-           {STEPS.map((step, idx) => {
-             const Icon = step.icon;
-             const isCompleted = idx < currentStepIndex;
-             const isActive = idx === currentStepIndex;
-             return (
-               <button
-                 key={step.id}
-                 onClick={() => setCurrentStepIndex(idx)}
-                 className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl transition-all min-w-[80px] ${
-                   isActive ? 'bg-brand-primary text-white shadow-md scale-105' : 
-                   isCompleted ? 'text-brand-primary bg-brand-primary/10' : 'text-slate-400 hover:bg-slate-100'
-                 }`}
-               >
-                 <Icon size={idx === currentStepIndex ? 18 : 16} />
-                 <span className="text-[9px] font-bold uppercase tracking-tight">{step.label}</span>
-               </button>
-             );
-           })}
-        </div>
-      </div>
+      )}
 
       {/* Step Render */}
       <div className="min-h-[70vh]">

@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useStudy } from '../context/StudyContext';
 import { listUserStudies, updateStudy, deleteStudy } from '../services/studyService';
-import { Study } from '../types';
+import { Study, StudyStatus } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Modal } from '../components/ui/Modal';
 import { motion } from 'framer-motion';
 import { fade, fadeSlideRight, fadeZoom } from '../lib/motionVariants';
 import {
@@ -19,11 +21,20 @@ import {
   Download,
   ExternalLink,
   Edit2,
-  Trash2,
-  XCircle
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Input } from '../components/ui/Input';
+import libraryShelf from '../assets/library-shelf.jpg';
+
+type DashboardStatusFilter = 'all' | StudyStatus;
+
+const STATUS_FILTERS: { value: DashboardStatusFilter; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'draft', label: 'Em andamento' },
+  { value: 'completed', label: 'Concluídos' },
+];
 
 export default function Dashboard() {
   const { user, signInWithGoogle } = useAuth();
@@ -39,6 +50,8 @@ export default function Dashboard() {
   const [editTitle, setEditTitle] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<DashboardStatusFilter>('all');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -182,14 +195,65 @@ export default function Dashboard() {
     );
   }
 
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredStudies = studies.filter((study) => {
+    if (statusFilter !== 'all' && study.status !== statusFilter) return false;
+    if (!normalizedQuery) return true;
+    const reference = study.bibleSelection
+      ? `${study.bibleSelection.book} ${study.bibleSelection.chapter}:${study.bibleSelection.verseStart}-${study.bibleSelection.verseEnd}`
+      : '';
+    return (
+      study.title.toLowerCase().includes(normalizedQuery) ||
+      reference.toLowerCase().includes(normalizedQuery)
+    );
+  });
+  const noResultsMessage = normalizedQuery
+    ? `Nenhum estudo encontrado para "${searchQuery.trim()}".`
+    : 'Nenhum estudo encontrado com esse filtro.';
+
   return (
     <motion.div {...fade(0.7)} className="space-y-8 pb-32">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-bold font-serif text-slate-900">Seus Estudos</h2>
-          <p className="text-slate-500 text-sm mt-1">Gerencie seu progresso hermenêutico e homilético.</p>
+      <div className="relative h-[220px] rounded-3xl overflow-hidden">
+        <img
+          src={libraryShelf}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 to-slate-950/25" />
+        <div className="relative h-full flex flex-col justify-end p-6 md:p-8">
+          <h2 className="text-3xl font-bold font-serif text-white">Seus Estudos</h2>
+          <p className="text-sm text-white/85 mt-1">
+            Seu acervo de sermões e estudos — gerencie, pesquise e retome de onde parou.
+          </p>
         </div>
-        
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 flex-1">
+          <div className="w-full sm:max-w-xs">
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Pesquisar por título ou referência..."
+            />
+          </div>
+          <div className="flex gap-2">
+            {STATUS_FILTERS.map((filter) => (
+              <button
+                key={filter.value}
+                onClick={() => setStatusFilter(filter.value)}
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+                  statusFilter === filter.value
+                    ? 'bg-brand-primary text-white'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-primary/40'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {!showNamingDialog ? (
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowNamingDialog(true)}>
@@ -200,8 +264,8 @@ export default function Dashboard() {
         ) : (
           <motion.div {...fadeSlideRight(0.3)} className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
             <input
-              type="text" 
-              placeholder="Nome do seu estudo..." 
+              type="text"
+              placeholder="Nome do seu estudo..."
               autoFocus
               className="px-4 py-2 outline-none text-sm w-48 md:w-64"
               value={newStudyTitle}
@@ -233,7 +297,10 @@ export default function Dashboard() {
       )}
 
       {studies.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center glass-card rounded-3xl border-dashed border-2 border-slate-300">
+        <Card
+          variant="glass"
+          className="flex flex-col items-center justify-center p-12 text-center rounded-3xl border-dashed border-2 border-slate-300"
+        >
           <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
             <BookOpen size={32} />
           </div>
@@ -241,14 +308,28 @@ export default function Dashboard() {
           <p className="text-slate-500 max-w-xs mt-2 text-sm">
             Você ainda não começou nenhum estudo bíblico. Clique no botão acima para começar seu primeiro projeto.
           </p>
-        </div>
+        </Card>
+      ) : filteredStudies.length === 0 ? (
+        <Card
+          variant="glass"
+          className="flex flex-col items-center justify-center p-12 text-center rounded-3xl border-dashed border-2 border-slate-300"
+        >
+          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
+            <BookOpen size={32} />
+          </div>
+          <h3 className="text-xl font-bold font-serif text-slate-800">Nenhum estudo encontrado</h3>
+          <p className="text-slate-500 max-w-xs mt-2 text-sm">
+            {noResultsMessage}
+          </p>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {studies.map((study) => (
-            <div 
+          {filteredStudies.map((study) => (
+            <Card
               key={study.id}
+              variant="glass"
               onClick={() => navigate(`/study/${study.id}`)}
-              className="group glass-card p-6 rounded-2xl cursor-pointer hover:border-brand-primary active:scale-[0.98] transition-all relative"
+              className="group p-6 rounded-2xl cursor-pointer hover:border-brand-primary active:scale-[0.98] transition-all relative"
             >
               {/* Progress indicator */}
               <div className="absolute top-0 left-0 w-2 h-full bg-brand-primary opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -358,75 +439,70 @@ export default function Dashboard() {
                 </span>
                 <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
-      {studyToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
-          <motion.div {...fadeZoom(0.2)} className="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl space-y-6">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-500">
-                <Trash2 size={32} />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold font-serif text-slate-900">Excluir Estudo?</h3>
-                <p className="text-sm text-slate-500">
-                  Tem certeza que deseja excluir <strong>"{studyToDelete.title}"</strong>? Esta ação não pode ser desfeita.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <Button 
-                variant="outline" 
-                className="flex-1" 
-                onClick={() => setStudyToDelete(null)}
-                disabled={!!actionLoading}
-              >
-                Cancelar
-              </Button>
-              <Button 
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-                onClick={() => handleDeleteStudy(studyToDelete.id)}
-                loading={actionLoading === studyToDelete.id}
-              >
-                Excluir
-              </Button>
-            </div>
-          </motion.div>
+      <Modal
+        open={!!studyToDelete}
+        onClose={() => setStudyToDelete(null)}
+        footer={
+          <>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setStudyToDelete(null)}
+              disabled={!!actionLoading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => studyToDelete && handleDeleteStudy(studyToDelete.id)}
+              loading={actionLoading === studyToDelete?.id}
+            >
+              Excluir
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col items-center text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+            <Trash2 size={32} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold font-serif text-slate-900">Excluir Estudo?</h3>
+            <p className="text-sm text-slate-500">
+              Tem certeza que deseja excluir <strong>"{studyToDelete?.title}"</strong>? Esta ação não pode ser desfeita.
+            </p>
+          </div>
         </div>
-      )}
+      </Modal>
 
       {/* Edit Title Modal */}
-      {editingStudy && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
-          <motion.div {...fadeZoom(0.3)} className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold font-serif text-slate-900">Editar Estudo</h2>
-              <button onClick={() => setEditingStudy(null)} className="text-slate-400 hover:text-slate-600">
-                <XCircle size={24} />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Título do Estudo</label>
-                <input 
-                  className="w-full px-4 py-3 bg-slate-50 rounded-xl border-none outline-none focus:ring-2 focus:ring-brand-primary/20"
-                  value={editTitle}
-                  onChange={e => setEditTitle(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div className="flex gap-4 pt-4">
-                <Button variant="outline" className="flex-1" onClick={() => setEditingStudy(null)}>Cancelar</Button>
-                <Button className="flex-1" onClick={handleUpdateStudy}>Salvar Alterações</Button>
-              </div>
-            </div>
-          </motion.div>
+      <Modal
+        open={!!editingStudy}
+        onClose={() => setEditingStudy(null)}
+        title="Editar Estudo"
+        footer={
+          <>
+            <Button variant="outline" className="flex-1" onClick={() => setEditingStudy(null)}>Cancelar</Button>
+            <Button className="flex-1" onClick={handleUpdateStudy}>Salvar Alterações</Button>
+          </>
+        }
+      >
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Título do Estudo</label>
+          <input
+            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-none outline-none focus:ring-2 focus:ring-brand-primary/20"
+            value={editTitle}
+            onChange={e => setEditTitle(e.target.value)}
+            autoFocus
+          />
         </div>
-      )}
+      </Modal>
     </motion.div>
   );
 }

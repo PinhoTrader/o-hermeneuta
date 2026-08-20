@@ -1,0 +1,63 @@
+<!-- @dsCard group="O Hermeneuta App" viewport="1100x720" name="App Walkthrough" subtitle="Landing, dashboard, study flow, groups chat, academy" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>O Hermeneuta — UI Kit</title>
+<link rel="stylesheet" href="../../_ds/o-hermeneuta-design-system-37522343-ccfe-4535-b15b-0e6de1db32be/styles.css">
+<script src="../../_ds/o-hermeneuta-design-system-37522343-ccfe-4535-b15b-0e6de1db32be/_ds_bundle.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--surface-app);font-family:var(--font-sans)}
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeSlideUp2{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeSlideDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.4}}
+button{transition:transform .15s ease}
+button:active{transform:scale(0.95)}
+</style>
+</head><body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="image-slot.js"></script>
+<script type="text/babel" src="Shared.jsx"></script>
+<script type="text/babel" src="LandingScreen.jsx"></script>
+<script type="text/babel" src="DashboardScreen.jsx"></script>
+<script type="text/babel" src="BibleSelectionScreen.jsx"></script>
+<script type="text/babel" src="StudyStepScreen.jsx"></script>
+<script type="text/babel" src="GroupsScreen.jsx"></script>
+<script type="text/babel" src="AcademyScreen.jsx"></script>
+<script type="text/babel">
+function App(){
+const [screen,setScreen]=React.useState('landing');
+const [studies,setStudies]=React.useState([
+{id:1,title:'Prólogo do Evangelho',ref:'João 1:1-18',status:'draft',updated:'12 de agosto'},
+{id:2,title:'Efésios - Cap 1',ref:'Efésios 1:3-14',status:'completed',updated:'2 de agosto'},
+{id:3,title:'O Bom Pastor',ref:'João 10:1-18',status:'completed',updated:'28 de julho'},
+{id:4,title:'Fé e Obras',ref:'Tiago 2:14-26',status:'draft',updated:'20 de julho'},
+{id:5,title:'O Salmo do Pastor',ref:'Salmos 23:1-6',status:'completed',updated:'9 de julho'}
+]);
+const [currentRef,setCurrentRef]=React.useState('João 1:1-18');
+const [chatOpen,setChatOpen]=React.useState(false);
+const {Icon}=window;
+const nav=(id)=>{if(id==='landing'){setScreen('landing');return;}if(id==='groups'){setChatOpen(false);}setScreen(id);};
+const body=(()=>{
+switch(screen){
+case 'landing':return React.createElement(LandingScreen,{onEnter:()=>setScreen('dashboard')});
+case 'dashboard':return React.createElement(DashboardScreen,{studies,onOpenStudy:s=>{setCurrentRef(s.ref||'João 1:1-18');setScreen('study');},onNewStudy:()=>setScreen('bible')});
+case 'bible':return React.createElement(BibleSelectionScreen,{onConfirm:ref=>{setCurrentRef(ref);setScreen('study');}});
+case 'study':return React.createElement(StudyStepScreen,{bibleRef:currentRef,onFinish:()=>setScreen('dashboard')});
+case 'groups':return React.createElement(GroupsScreen);
+case 'academy':return React.createElement(AcademyScreen);
+default:return null;
+}
+})();
+return React.createElement('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column'}},
+screen!=='landing'&&React.createElement(Topbar,{active:screen,onNav:nav}),
+React.createElement('main',{style:{flex:1}},body),
+screen!=='landing'&&React.createElement('button',{onClick:()=>nav('groups'),title:'Salas Virtuais & Instrutor de IA',style:{position:'fixed',bottom:24,right:24,width:64,height:64,borderRadius:999,background:'var(--color-brand-primary)',border:'4px solid #fff',boxShadow:'var(--shadow-brand)',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'transform .3s ease'},onMouseEnter:e=>e.currentTarget.style.transform='scale(1.1)',onMouseLeave:e=>e.currentTarget.style.transform='scale(1)'},
+React.createElement('div',{style:{position:'relative'}},
+React.createElement(Icon,{name:'message-square',size:28,color:'#fff'}),
+React.createElement('span',{style:{position:'absolute',top:-4,right:-4,width:12,height:12,background:'#ef4444',borderRadius:999,border:'2px solid #fff',animation:'pulseDot 2s ease-in-out infinite'}}))));
+}
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body></html>

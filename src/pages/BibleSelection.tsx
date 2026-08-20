@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input, Select } from '../components/ui/Input';
 import { ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { fadeSlideBottom } from '../lib/motionVariants';
@@ -110,63 +112,45 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
         <p className="text-slate-500">Selecione o trecho que você deseja cavar e descobrir.</p>
       </div>
 
-      <div className="glass-card p-8 rounded-3xl space-y-6">
+      <Card variant="glass" className="p-8 rounded-3xl space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Livro</label>
-            <select 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-primary outline-none transition-all"
-              value={selection.book}
-              onChange={(e) => setSelection({...selection, book: e.target.value})}
-            >
-              <option value="">Selecione...</option>
-              {BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </div>
+          <Select
+            label="Livro"
+            value={selection.book}
+            onChange={(e) => setSelection({...selection, book: e.target.value})}
+            options={[{ value: '', label: 'Selecione...' }, ...BOOKS.map(b => ({ value: b, label: b }))]}
+          />
 
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Capítulo</label>
-            <input 
-              type="number" 
-              min="1"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-primary outline-none"
-              value={selection.chapter}
-              onChange={(e) => setSelection({...selection, chapter: parsePositiveInt(e.target.value)})}
-            />
-          </div>
+          <Input
+            label="Capítulo"
+            type="number"
+            min="1"
+            value={selection.chapter}
+            onChange={(e) => setSelection({...selection, chapter: parsePositiveInt(e.target.value)})}
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Versículo Inicial</label>
-            <input 
-              type="number" 
-              min="1"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-primary outline-none"
-              value={selection.verseStart}
-              onChange={(e) => setSelection({...selection, verseStart: parsePositiveInt(e.target.value)})}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Versículo Final</label>
-            <input 
-              type="number" 
-              min="1"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-primary outline-none"
-              value={selection.verseEnd}
-              onChange={(e) => setSelection({...selection, verseEnd: parsePositiveInt(e.target.value)})}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tradução</label>
-            <select 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-primary outline-none"
-              value={selection.translation}
-              onChange={(e) => setSelection({...selection, translation: e.target.value})}
-            >
-              {TRANSLATIONS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
+          <Input
+            label="Versículo Inicial"
+            type="number"
+            min="1"
+            value={selection.verseStart}
+            onChange={(e) => setSelection({...selection, verseStart: parsePositiveInt(e.target.value)})}
+          />
+          <Input
+            label="Versículo Final"
+            type="number"
+            min="1"
+            value={selection.verseEnd}
+            onChange={(e) => setSelection({...selection, verseEnd: parsePositiveInt(e.target.value)})}
+          />
+          <Select
+            label="Tradução"
+            value={selection.translation}
+            onChange={(e) => setSelection({...selection, translation: e.target.value})}
+            options={TRANSLATIONS.map(t => ({ value: t, label: t }))}
+          />
         </div>
 
         {error && (
@@ -192,8 +176,8 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
             <ChevronRight size={20} />
           </Button>
         </div>
-      </div>
-      
+      </Card>
+
       <div className="p-6 bg-brand-primary/5 rounded-2xl border border-brand-primary/10">
         <p className="text-xs text-brand-primary/80 italic text-center">
           "A erva seca, e a flor cai, mas a palavra do nosso Deus permanece para sempre." — Isaías 40:8

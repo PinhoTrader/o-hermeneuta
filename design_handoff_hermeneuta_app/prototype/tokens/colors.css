@@ -1,0 +1,26 @@
+:root{
+--evergreen-900:#1c3226;--evergreen-700:#2f4f3c;--evergreen-600:#3F6B4F;--evergreen-400:#7a9c89;--evergreen-100:#dde8e1;--evergreen-050:#eef4f0;
+--paper:#ffffff;
+--slate-950:#020617;--slate-900:#0f172a;--slate-800:#1e293b;--slate-500:#64748b;--slate-400:#94a3b8;--slate-300:#cbd5e1;--slate-200:#e2e8f0;--slate-100:#f1f5f9;--slate-050:#f8fafc;
+--amber-700:#b45309;--amber-600:#d97706;--amber-500:#f59e0b;--amber-300:#fcd34d;--amber-100:#fef3c7;--amber-050:#fffbeb;
+--green-700:#15803d;--green-600:#16a34a;--green-100:#dcfce7;--green-050:#f0fdf4;
+--red-700:#b91c1c;--red-600:#dc2626;--red-500:#ef4444;--red-100:#fee2e2;--red-050:#fef2f2;
+--blue-600:#2563eb;--blue-100:#dbeafe;
+--color-brand-primary:var(--evergreen-600);
+--color-brand-primary-hover:color-mix(in oklch,var(--evergreen-600) 88%,black);
+--color-brand-secondary:var(--evergreen-050);
+--color-brand-paper:var(--paper);
+--text-primary:var(--slate-900);
+--text-secondary:var(--slate-500);
+--text-tertiary:var(--slate-400);
+--text-on-brand:#ffffff;
+--border-default:var(--slate-200);
+--border-subtle:var(--slate-100);
+--surface-app:var(--evergreen-050);
+--surface-card:var(--paper);
+--surface-sunken:var(--slate-050);
+--state-success-bg:var(--green-100);--state-success-text:var(--green-700);
+--state-danger-bg:var(--red-100);--state-danger-text:var(--red-600);
+--state-warning-bg:var(--amber-100);--state-warning-text:var(--amber-700);
+--state-info-bg:var(--blue-100);--state-info-text:var(--blue-600);
+}

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, LayoutDashboard, MessageSquare, BookOpen, ChevronRight, Menu, X, Shield, User as UserIcon, GraduationCap } from 'lucide-react';
+import { LogOut, LayoutDashboard, MessageSquare, BookOpen, ChevronDown, Menu, X, Shield, User as UserIcon, GraduationCap, Settings as SettingsIcon, Edit3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/Button';
+import { Badge } from './ui/Badge';
 import { ChatOverlay } from './ChatOverlay';
 import { isSuperAdminEmail } from '../config/superAdmin';
+import { fadeZoom } from '../lib/motionVariants';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -17,6 +19,7 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const navItems = [
     { label: 'Meus Estudos', path: '/dashboard', icon: LayoutDashboard },
@@ -39,16 +42,16 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col bg-brand-secondary">
       {/* Topbar */}
-      <header className="h-16 border-b border-slate-200 bg-white/50 backdrop-blur-md sticky top-0 z-40">
+      <header className="h-16 border-b border-slate-800 bg-slate-900 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <h1 
-              className="text-xl font-bold font-serif text-brand-primary cursor-pointer hover:opacity-80 transition-opacity"
+            <h1
+              className="text-xl font-bold font-serif text-white cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => navigate('/dashboard')}
             >
               O Hermeneuta
             </h1>
-            
+
             <nav className="hidden md:flex items-center gap-6">
               {filteredNavItems.map((item) => {
                 const Icon = item.icon;
@@ -57,8 +60,8 @@ export function Layout({ children }: LayoutProps) {
                   <button
                     key={item.path}
                     onClick={() => navigate(item.path)}
-                    className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-brand-primary ${
-                      isActive ? 'text-brand-primary' : 'text-slate-500'
+                    className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-white ${
+                      isActive ? 'text-white' : 'text-white/65'
                     }`}
                   >
                     <Icon size={18} />
@@ -71,33 +74,78 @@ export function Layout({ children }: LayoutProps) {
 
           <div className="flex items-center gap-4">
             {user ? (
-              <div className="flex items-center gap-4">
-                <div className="hidden sm:flex flex-col items-end">
-                  <div className="flex items-center gap-2">
-                    {profile?.role === 'professor' && (
-                      <span className="text-[9px] px-1.5 bg-blue-100 text-blue-600 font-bold rounded uppercase">Professor</span>
-                    )}
-                    {profile?.role === 'admin' && (
-                      <span className="text-[9px] px-1.5 bg-red-100 text-red-600 font-bold rounded uppercase">Administração</span>
-                    )}
-                    <span className="text-xs font-semibold text-slate-900">{profile?.displayName || user.displayName || 'Usuário'}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500">{user.email}</span>
-                </div>
-                <button 
-                  onClick={() => signOut()}
-                  className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all rounded-full"
-                  title="Sair"
+              <div className="relative">
+                <button
+                  onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                  className="flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full border border-white/15 hover:bg-white/10 transition-all"
                 >
-                  <LogOut size={20} />
+                  <div className="w-8 h-8 rounded-full bg-brand-primary text-white flex items-center justify-center overflow-hidden shrink-0">
+                    {profile?.photoURL ? (
+                      <img src={profile.photoURL} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserIcon size={16} />
+                    )}
+                  </div>
+                  <div className="hidden sm:flex flex-col items-start leading-tight">
+                    <div className="flex items-center gap-1.5">
+                      {profile?.role === 'professor' && <Badge tone="professor">Professor</Badge>}
+                      {profile?.role === 'admin' && <Badge tone="admin">Administração</Badge>}
+                      <span className="text-xs font-semibold text-white">{profile?.displayName || user.displayName || 'Usuário'}</span>
+                    </div>
+                    <span className="text-[10px] text-white/60">{user.email}</span>
+                  </div>
+                  <ChevronDown size={14} className="text-white/70" />
                 </button>
+
+                <AnimatePresence>
+                  {isUserMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsUserMenuOpen(false)} />
+                      <motion.div
+                        {...fadeZoom(0.2)}
+                        style={{ transformOrigin: 'top right' }}
+                        className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-lg border border-slate-100 p-2 z-50"
+                      >
+                        <button
+                          onClick={() => { navigate('/account'); setIsUserMenuOpen(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 text-left"
+                        >
+                          <UserIcon size={16} />
+                          Minha Conta
+                        </button>
+                        <button
+                          onClick={() => { navigate('/settings'); setIsUserMenuOpen(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 text-left"
+                        >
+                          <SettingsIcon size={16} />
+                          Configurações
+                        </button>
+                        <button
+                          onClick={() => { navigate('/edit-profile'); setIsUserMenuOpen(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 text-left"
+                        >
+                          <Edit3 size={16} />
+                          Editar Perfil
+                        </button>
+                        <div className="h-px bg-slate-100 my-1" />
+                        <button
+                          onClick={() => { setIsUserMenuOpen(false); signOut(); }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-red-600 hover:bg-red-50 text-left"
+                        >
+                          <LogOut size={16} />
+                          Sair
+                        </button>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
               </div>
             ) : (
               <Button size="sm" onClick={() => navigate('/')}>Entrar</Button>
             )}
             
-            <button 
-              className="md:hidden p-2"
+            <button
+              className="md:hidden p-2 text-white"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
               {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}

@@ -1,5 +1,6 @@
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 import { CheckCircle2, ChevronLeft, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { fadeSlideBottom } from '../lib/motionVariants';
@@ -27,7 +28,7 @@ export default function FinalReview({ onBack, onComplete }: { onBack: () => void
 
       <div className="space-y-6">
         {sections.map((section, index) => (
-          <div key={section.title} className="glass-card p-8 rounded-3xl space-y-4">
+          <Card key={section.title} variant="glass" className="p-8 rounded-3xl space-y-4">
             <h3 className="text-lg font-bold font-serif text-brand-primary flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-brand-primary/10 text-[10px] flex items-center justify-center">
                 {String(index + 1).padStart(2, '0')}
@@ -37,7 +38,7 @@ export default function FinalReview({ onBack, onComplete }: { onBack: () => void
             <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap italic">
               {section.content || <span className="text-slate-300">Não preenchido</span>}
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
