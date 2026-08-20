@@ -91,14 +91,14 @@ export default function LandingPage() {
           transition={{ duration: 0.8, ease: 'easeOut' }}
           className="space-y-8"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 text-brand-primary text-xs font-bold tracking-widest uppercase backdrop-blur-md border border-white/10">
-            <Sparkles size={14} />
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 text-white text-xs font-bold tracking-widest uppercase backdrop-blur-md border border-white/10">
+            <Sparkles size={14} className="text-amber-300" />
             Um método que transforma sua pregação
           </div>
           
           <h2 className="text-5xl md:text-8xl font-black font-serif leading-[0.95] text-white tracking-tighter">
             Trabalhe o Texto.<br />
-            <span className="italic text-transparent bg-clip-text bg-gradient-to-r from-brand-primary to-amber-300 drop-shadow-md">Pregue com Vida.</span>
+            <span className="italic text-amber-300 drop-shadow-md">Pregue com Vida.</span>
           </h2>
           
           <p className="text-xl md:text-2xl text-slate-300 max-w-2xl mx-auto leading-relaxed font-light">
@@ -157,7 +157,7 @@ export default function LandingPage() {
         >
           {features.map((feature) => (
             <div key={feature.title} className="group p-8 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-brand-primary/40 transition-all duration-500">
-              <div className="w-14 h-14 rounded-2xl bg-brand-primary/20 flex items-center justify-center text-brand-primary mb-8 group-hover:scale-110 transition-transform">
+              <div className="w-14 h-14 rounded-2xl bg-brand-primary/20 flex items-center justify-center text-white mb-8 group-hover:scale-110 transition-transform">
                 <feature.icon size={28} />
               </div>
               <h3 className="text-2xl font-bold font-serif mb-4 text-white uppercase tracking-tight">{feature.title}</h3>

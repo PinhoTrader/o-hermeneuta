@@ -188,6 +188,18 @@ async function getLocalBibleText(translation: string, book: string, chapter: num
   }
 }
 
+// Algumas das APIs externas (ex. PrayerPulse) retornam o texto do versículo
+// com tags HTML cruas embutidas (ex. "<br>" nas quebras de linha). Como esse
+// texto é exibido como texto puro (não HTML) e também alimenta o prompt do
+// Instrutor de IA, qualquer tag precisa ser removida antes de cachear/usar.
+function sanitizeBibleText(text: string): string {
+  return text
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // --- Cache System ---
 const BIBLE_CACHE_KEY = 'hermeneuta_bible_cache';
 const memoryCache: Record<string, string> = {};
@@ -223,7 +235,7 @@ function setCachedText(key: string, text: string) {
 export async function fetchBibleText(book: string, chapter: number, verseStart: number, verseEnd: number, translation: string = 'ARA') {
   const cacheKey = `${translation}-${book}-${chapter}-${verseStart}-${verseEnd}`;
   const cached = getCachedText(cacheKey);
-  if (cached) return cached;
+  if (cached) return sanitizeBibleText(cached);
 
   const mappingKey = BOOK_MAPPING[book] || book.toLowerCase();
   let result = "";
@@ -274,8 +286,9 @@ export async function fetchBibleText(book: string, chapter: number, verseStart: 
     }
 
     if (result) {
-      setCachedText(cacheKey, result);
-      return result;
+      const cleanResult = sanitizeBibleText(result);
+      setCachedText(cacheKey, cleanResult);
+      return cleanResult;
     }
 
     return "Ops! Não conseguimos carregar o texto automático agora. Por favor, utilize sua Bíblia física para preencher esta etapa e continue seu estudo.";

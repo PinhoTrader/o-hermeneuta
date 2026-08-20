@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { motion } from 'framer-motion';
 import { fadeSlideTop } from '../lib/motionVariants';
-import { Plus, Send, Users, MessageCircle, Hash, Search, UserPlus } from 'lucide-react';
+import { Plus, Send, Users, MessageCircle, Sparkles, Search, UserPlus } from 'lucide-react';
 import { 
   listUserGroups, 
   createGroup, 
@@ -516,7 +516,7 @@ export default function GroupsPage() {
                 <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center ${
                   selectedGroup.id === 'ai-instructor' ? 'bg-amber-100 text-amber-600' : 'bg-brand-primary/10 text-brand-primary'
                 }`}>
-                  {selectedGroup.id === 'ai-instructor' ? <Hash size={18} /> : <Hash size={18} />}
+                  {selectedGroup.id === 'ai-instructor' ? <Sparkles size={18} /> : <Users size={18} />}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">

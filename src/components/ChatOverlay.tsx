@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  X, 
-  MessageSquare, 
-  Users, 
-  Hash, 
-  Send, 
+  X,
+  MessageSquare,
+  Users,
+  Sparkles,
+  Send,
   Search,
   ChevronLeft,
   MessageCircle,
@@ -249,7 +249,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
                   >
                     <div className="absolute top-0 right-0 p-1 bg-amber-200 text-[8px] font-black text-amber-700 rounded-bl-lg uppercase">AI Mentor</div>
                     <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-200">
-                      <Hash size={24} />
+                      <Sparkles size={24} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start mb-0.5">

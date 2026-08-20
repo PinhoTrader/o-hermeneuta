@@ -70,12 +70,18 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
     setWarning(null);
     setLoading(true);
     
+    // Na primeira seleção, o título ainda é o placeholder criado ao abrir "Novo Estudo"
+    // (não existe passo de nomeação antes desta tela) — deriva um título legível da referência.
+    const autoTitle = !currentStudy?.bibleSelection
+      ? { title: `${selection.book} ${selection.chapter}:${selection.verseStart}-${selection.verseEnd}` }
+      : {};
+
     try {
       const bibleText = await fetchBibleText(
-        selection.book, 
-        selection.chapter, 
-        selection.verseStart, 
-        selection.verseEnd, 
+        selection.book,
+        selection.chapter,
+        selection.verseStart,
+        selection.verseEnd,
         selection.translation
       );
 
@@ -84,6 +90,7 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
       }
 
       await updateCurrentStudy({
+        ...autoTitle,
         bibleSelection: {
           ...selection,
           text: bibleText
@@ -94,6 +101,7 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
       console.error(error);
       setWarning('Não conseguimos carregar o texto automaticamente agora. Você pode continuar e preencher/conferir o trecho manualmente.');
       await updateCurrentStudy({
+        ...autoTitle,
         bibleSelection: {
           ...selection,
           text: 'Texto não carregado automaticamente. Confira o trecho em sua Bíblia e continue o estudo.'

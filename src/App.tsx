@@ -3,10 +3,6 @@ import { AuthProvider } from './context/AuthContext';
 import { StudyProvider, useStudy } from './context/StudyContext';
 import { ProtectedRoute, AdminRoute } from './components/AuthRoutes';
 import { Button } from './components/ui/Button';
-import { Input } from './components/ui/Input';
-import { BookOpen } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { fadeZoom } from './lib/motionVariants';
 import React from 'react';
 
 const LandingPage = React.lazy(() => import('./pages/LandingPage'));
@@ -30,69 +26,37 @@ function PageFallback() {
 function NewStudyRoute() {
   const { createNewStudy } = useStudy();
   const navigate = useNavigate();
-  const [title, setTitle] = React.useState('');
-  const [isCreating, setIsCreating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const startedRef = React.useRef(false);
 
-  const handleCreate = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!title.trim() || isCreating) return;
+  React.useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
 
-    setIsCreating(true);
-    setError(null);
-    try {
-      const id = await createNewStudy(title);
-      navigate(`/study/${id}`);
-    } catch {
-      setError('Falha ao criar estudo. Tente novamente.');
-      setIsCreating(false);
-    }
-  };
+    (async () => {
+      try {
+        const id = await createNewStudy('Novo Estudo');
+        navigate(`/study/${id}`, { replace: true });
+      } catch {
+        setError('Falha ao criar estudo. Tente novamente.');
+      }
+    })();
+  }, []);
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center space-y-4">
+        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-sm">
+          {error}
+        </p>
+        <Button variant="outline" onClick={() => navigate('/dashboard')}>Voltar ao Dashboard</Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
-      <motion.div {...fadeZoom(0.5)} className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-slate-100 space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <BookOpen size={32} />
-          </div>
-          <h2 className="text-2xl font-bold font-serif text-slate-900">Iniciar Novo Estudo</h2>
-          <p className="text-slate-500 text-sm">Dê um nome ao seu projeto para começar a cavar as Escrituras.</p>
-        </div>
-
-        <form onSubmit={handleCreate} className="space-y-4">
-          <Input
-            label="Título do Estudo"
-            type="text"
-            autoFocus
-            placeholder="Ex: Epístola aos Efésios - Cap 1"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={isCreating}
-            error={error || undefined}
-          />
-
-          <div className="flex gap-3 pt-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="flex-1" 
-              onClick={() => navigate('/dashboard')}
-              disabled={isCreating}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              type="submit" 
-              className="flex-1" 
-              loading={isCreating}
-              disabled={!title.trim()}
-            >
-              Começar Estudo
-            </Button>
-          </div>
-        </form>
-      </motion.div>
+    <div className="flex h-[60vh] items-center justify-center text-brand-primary">
+      <div className="animate-spin">○</div>
     </div>
   );
 }

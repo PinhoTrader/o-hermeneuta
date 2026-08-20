@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { motion } from 'framer-motion';
-import { fade, fadeSlideRight, fadeZoom } from '../lib/motionVariants';
+import { fade, fadeZoom } from '../lib/motionVariants';
 import {
   Plus,
   BookOpen, 
@@ -42,8 +42,6 @@ export default function Dashboard() {
   const [studies, setStudies] = useState<Study[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [newStudyTitle, setNewStudyTitle] = useState('');
-  const [showNamingDialog, setShowNamingDialog] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [editingStudy, setEditingStudy] = useState<Study | null>(null);
   const [studyToDelete, setStudyToDelete] = useState<Study | null>(null);
@@ -162,14 +160,10 @@ export default function Dashboard() {
 
   const handleCreateStudy = async () => {
     if (!user) return;
-    if (!newStudyTitle.trim()) {
-      setShowNamingDialog(true);
-      return;
-    }
-    
+
     setIsCreating(true);
     try {
-      const id = await createNewStudy(newStudyTitle);
+      const id = await createNewStudy('Novo Estudo');
       navigate(`/study/${id}`);
     } catch (error) {
       console.error(error);
@@ -254,30 +248,12 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {!showNamingDialog ? (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowNamingDialog(true)}>
-              <Plus size={18} />
-              Novo Estudo
-            </Button>
-          </div>
-        ) : (
-          <motion.div {...fadeSlideRight(0.3)} className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-            <input
-              type="text"
-              placeholder="Nome do seu estudo..."
-              autoFocus
-              className="px-4 py-2 outline-none text-sm w-48 md:w-64"
-              value={newStudyTitle}
-              onChange={(e) => setNewStudyTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateStudy()}
-            />
-            <Button size="sm" onClick={handleCreateStudy} loading={isCreating} disabled={!newStudyTitle.trim()}>Criar</Button>
-            <Button size="sm" variant="ghost" onClick={() => { setShowNamingDialog(false); setNewStudyTitle(''); }}>
-              Cancelar
-            </Button>
-          </motion.div>
-        )}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleCreateStudy} loading={isCreating}>
+            <Plus size={18} />
+            Novo Estudo
+          </Button>
+        </div>
       </div>
 
       {actionError && (
