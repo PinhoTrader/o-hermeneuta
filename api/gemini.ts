@@ -3,6 +3,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Study } from '../src/types';
 import firebaseConfig from '../firebase-applet-config.json';
+import { getMethodContextForStage, getFullMethodText } from './cavarEDescobrirPrinciples';
 
 type ChatHistoryItem = {
   role: 'user' | 'model';
@@ -62,6 +63,7 @@ type MentorMethodStep =
   | 'ideia_principal'
   | 'intento_transformador'
   | 'teologia_biblica'
+  | 'texto_estrutura'
   | 'rota_direta'
   | null;
 type MentorBase = 'texto_do_usuario' | 'texto_biblico_do_contexto' | 'ambos';
@@ -162,7 +164,7 @@ Também é proibido:
 Se o usuário pedir algo que exija conteúdo externo, responda de forma breve informando que você só pode trabalhar com o texto bíblico, a resposta do usuário e o contexto interno do aplicativo.
 
 PRINCÍPIOS DO MÉTODO
-Use internamente estes princípios para orientar sua resposta:
+Logo após esta instrução, o aplicativo anexará o TEXTO OFICIAL dos princípios do livreto "Cavar & Descobrir" (Edição 5.0, WordPartners) relevantes à etapa atual - essa é a fonte primária e mais autoritativa sobre o método, mais confiável que seu próprio conhecimento prévio sobre ele. Use-a para orientar sua resposta:
 1. Linha: o usuário está dizendo apenas o que o texto diz?
 2. Boas Perguntas: ele está apenas nas perguntas básicas ou já avançou para perguntas vigorosas?
 3. Gênero: o usuário percebeu o tipo de texto, o tom do autor e o efeito pretendido no leitor?
@@ -170,6 +172,7 @@ Use internamente estes princípios para orientar sua resposta:
 5. Instruções de Viagem: o usuário tentou fazer aplicação direta sem passar pelo contexto original? Se sim, corrija isso como "Rota Direta" (etapaMetodo: rota_direta).
 6. Ideia Principal e Intento Transformador: o usuário consegue dizer o que o autor está dizendo e por que o autor está dizendo isso?
 7. Teologia Bíblica: quando houver base suficiente, ajude o usuário a enxergar como a passagem se conecta à história da redenção e ao foco e cumprimento em Cristo. Nunca force essa conexão.
+8. Texto e Estrutura ("o texto é rei"): o usuário está deixando o texto bíblico questionar e moldar suas próprias estruturas mentais/teológicas prévias, em vez de forçar o texto a caber nelas?
 
 COMPORTAMENTO PEDAGÓGICO
 Você é um mentor socrático, firme e encorajador.
@@ -213,7 +216,7 @@ Responda sempre em JSON válido, sem Markdown, sem bloco de código e sem texto 
   "feedback": "resposta clara, natural e encorajadora",
   "proximaPergunta": "uma única pergunta vigorosa e objetiva, ou string vazia quando não houver pergunta",
   "dica": "opcional; use apenas se o usuário demonstrar dificuldade",
-  "etapaMetodo": "linha" | "boas_perguntas" | "genero" | "estrutura" | "contexto" | "ideia_principal" | "intento_transformador" | "teologia_biblica" | "rota_direta" | null,
+  "etapaMetodo": "linha" | "boas_perguntas" | "genero" | "estrutura" | "contexto" | "ideia_principal" | "intento_transformador" | "teologia_biblica" | "texto_estrutura" | "rota_direta" | null,
   "baseUsada": "texto_do_usuario" | "texto_biblico_do_contexto" | "ambos"
 }
 
@@ -544,6 +547,7 @@ function isMentorMethodStep(value: unknown): value is MentorMethodStep {
     value === 'ideia_principal' ||
     value === 'intento_transformador' ||
     value === 'teologia_biblica' ||
+    value === 'texto_estrutura' ||
     value === 'rota_direta' ||
     value === null
   );
@@ -760,7 +764,7 @@ async function generateText(body: GeminiRequestBody) {
       model: modelName,
       contents: [{ role: 'user', parts: [{ text: `${getStudyContext(study)}\n\n${prompt}` }] }],
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
+        systemInstruction: `${SYSTEM_INSTRUCTION}\n\n${getMethodContextForStage(stage)}`,
         temperature: 0.7,
       },
     });
@@ -775,7 +779,7 @@ async function generateText(body: GeminiRequestBody) {
       model: modelName,
       contents: [{ role: 'user', parts: [{ text: `${getInstructorContext(study)}\n\nPergunta do Usuario: <pergunta_usuario>${question}</pergunta_usuario>` }] }],
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
+        systemInstruction: `${SYSTEM_INSTRUCTION}\n\n${getFullMethodText()}`,
         temperature: 0.7,
       },
     });
@@ -791,7 +795,7 @@ async function generateText(body: GeminiRequestBody) {
       { role: 'user' as const, parts: [{ text: `<mensagem_usuario>${message}</mensagem_usuario>` }] },
     ],
     config: {
-      systemInstruction: `${SYSTEM_INSTRUCTION}\nInteraja em um chat geral sobre o método, sem entregar interpretação final.`,
+      systemInstruction: `${SYSTEM_INSTRUCTION}\nInteraja em um chat geral sobre o método, sem entregar interpretação final.\n\n${getFullMethodText()}`,
       temperature: 0.7,
     },
   });

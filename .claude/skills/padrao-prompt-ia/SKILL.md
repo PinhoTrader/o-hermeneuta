@@ -5,8 +5,51 @@ description: Use esta skill sempre que alterar api/gemini.ts, o system prompt do
 
 # Padrão do Instrutor de IA (Gemini) — O Hermeneuta
 
-Fonte: `api/gemini.ts` (2026-08-16). Única rota serverless do projeto, roda
-em `gemini-3-flash-preview`.
+Fonte: `api/gemini.ts` (2026-08-16, atualizado em 2026-08-22 com a fonte
+canônica do método). Única rota serverless do projeto, roda em
+`gemini-3-flash-preview`.
+
+## Fonte canônica do método — `api/cavarEDescobrirPrinciples.ts` (2026-08-22)
+
+Até 2026-08-22, os "PRINCÍPIOS DO MÉTODO" dentro do `SYSTEM_INSTRUCTION` eram
+uma síntese em prosa escrita à mão. Isso foi substituído por texto transcrito
+diretamente do livreto oficial **"Princípios do Cavar & Descobrir", Edição
+5.0** (WordPartners, 2023, CC BY-SA 4.0) — ver `api/cavarEDescobrirPrinciples.ts`.
+Esse arquivo é a fonte única de verdade do conteúdo doutrinário/pedagógico do
+método; `SYSTEM_INSTRUCTION` continua controlando só persona/comportamento/
+formato de saída.
+
+**Por que não é RAG/embeddings**: o livreto inteiro tem ~9 mil palavras
+(~22 mil caracteres) — cabe folgado em qualquer chamada ao Gemini. Não há
+necessidade de busca semântica porque a etapa atual já é conhecida com
+certeza (vem do app via `stage`, não de inferência) — é só um lookup
+determinístico, não recuperação difusa.
+
+Duas funções de acesso:
+- `getMethodContextForStage(stageLabel?)` — usada por `stageFeedback`. Injeta
+  só "A Linha" (sempre) + o(s) princípio(s) mapeado(s) à etapa atual via
+  `STAGE_LABEL_TO_PRINCIPLES`, cujas chaves são os `label` de `STEPS` em
+  `src/pages/StudyController.tsx` (`'Observação'`, `'Perguntas'`, `'Gênero &
+  Estilo'`, `'Contexto'`, `'Ideia Principal'`, `'Intento'`, `'Esboço'`,
+  `'Sermão'`) — **não** os valores do enum `etapaMetodo`. Se o `label` de uma
+  etapa mudar em `StudyController.tsx`, o mapeamento quebra silenciosamente
+  (cai no fallback de só "A Linha") — atualizar os dois juntos.
+- `getFullMethodText()` — usada por `askInstructor` e `generalChat`, que não
+  têm uma etapa única conhecida. Injeta o livreto completo.
+
+O princípio **"Texto e Estrutura"** (página 20 do livreto, "o texto é rei" —
+sobre estruturas mentais/teológicas do leitor, diferente do princípio
+"Estrutura" sobre unidades de pensamento do texto) foi adicionado como 9º
+princípio e como novo valor `texto_estrutura` no enum `etapaMetodo` — não
+existia na síntese anterior. A tabela de características por gênero (uma
+página do livreto em layout de colunas que a extração de texto do PDF
+embaralhou) foi transcrita manualmente a partir do original pelo dono do
+produto e está incorporada ao princípio `genero`.
+
+Mudar o **conteúdo** de `cavarEDescobrirPrinciples.ts` é decisão doutrinária/
+pedagógica do dono do produto, igual a mudar o `SYSTEM_INSTRUCTION` — ver
+regra abaixo. Mudar a lógica de lookup/mapeamento é território técnico
+normal.
 
 ## Regra mais importante: isto não é só engenharia
 
@@ -44,7 +87,7 @@ exatamente essa mesma sequência das 3 existentes.
   dica?: string | null,
   etapaMetodo: "linha" | "boas_perguntas" | "genero" | "estrutura" |
                "contexto" | "ideia_principal" | "intento_transformador" |
-               "teologia_biblica" | null,
+               "teologia_biblica" | "texto_estrutura" | "rota_direta" | null,
   baseUsada: "texto_do_usuario" | "texto_biblico_do_contexto" | "ambos",
 }
 ```

@@ -2,10 +2,13 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { AuthProvider } from './context/AuthContext';
 import { StudyProvider, useStudy } from './context/StudyContext';
 import { ProtectedRoute, AdminRoute } from './components/AuthRoutes';
+import { Layout } from './components/Layout';
 import { Button } from './components/ui/Button';
 import React from 'react';
 
 const LandingPage = React.lazy(() => import('./pages/LandingPage'));
+const TermsOfUse = React.lazy(() => import('./pages/TermsOfUse'));
+const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const AcademyPage = React.lazy(() => import('./pages/AcademyPage'));
 const StudyController = React.lazy(() => import('./pages/StudyController'));
@@ -69,7 +72,10 @@ export default function App() {
           <React.Suspense fallback={<PageFallback />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />
-              
+
+              <Route path="/termos" element={<Layout><TermsOfUse /></Layout>} />
+              <Route path="/privacidade" element={<Layout><PrivacyPolicy /></Layout>} />
+
               <Route path="/dashboard" element={
                 <ProtectedRoute>
                   <Dashboard />

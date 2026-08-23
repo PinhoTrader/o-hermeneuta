@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { LogOut, LayoutDashboard, MessageSquare, BookOpen, ChevronDown, Menu, X, Shield, User as UserIcon, GraduationCap, Settings as SettingsIcon, Edit3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import { Badge } from './ui/Badge';
 import { ChatOverlay } from './ChatOverlay';
 import { isSuperAdminEmail } from '../config/superAdmin';
 import { fadeZoom } from '../lib/motionVariants';
+import logoIcon from '../assets/logo-icon.png';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -45,12 +46,17 @@ export function Layout({ children }: LayoutProps) {
       <header className="h-16 border-b border-slate-800 bg-slate-900 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <h1
-              className="text-xl font-bold font-serif text-white cursor-pointer hover:opacity-80 transition-opacity"
+            <div
+              className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => navigate('/dashboard')}
             >
-              O Hermeneuta
-            </h1>
+              <div className="w-8 h-8 bg-white flex items-center justify-center rounded-lg shadow-sm shrink-0">
+                <img src={logoIcon} alt="O Hermeneuta" className="w-6 h-6 object-contain" />
+              </div>
+              <h1 className="text-xl font-bold font-serif text-white">
+                O Hermeneuta
+              </h1>
+            </div>
 
             <nav className="hidden md:flex items-center gap-6">
               {filteredNavItems.map((item) => {
@@ -209,8 +215,12 @@ export function Layout({ children }: LayoutProps) {
         <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
           © {new Date().getFullYear()} O Hermeneuta • Desenvolvido por <a href="https://github.com/P1n40" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline">P1n40</a>
         </p>
-        <p className="text-[9px] text-slate-400 mt-1">
+        <p className="text-[9px] text-slate-400 mt-1 flex items-center justify-center gap-3">
           <a href="https://github.com/P1n40/o-hermeneuta" target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary">Código Fonte no GitHub</a>
+          <span aria-hidden="true">•</span>
+          <Link to="/termos" className="hover:text-brand-primary">Termos de Uso</Link>
+          <span aria-hidden="true">•</span>
+          <Link to="/privacidade" className="hover:text-brand-primary">Privacidade</Link>
         </p>
       </footer>
     </div>

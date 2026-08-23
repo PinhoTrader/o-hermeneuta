@@ -1,10 +1,11 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { motion } from 'framer-motion';
-import { BookOpen, Sparkles, ShieldCheck, Search, ChevronRight } from 'lucide-react';
+import { Sparkles, ShieldCheck, Search, ChevronRight } from 'lucide-react';
 import heroMentorship from '../assets/hero-mentorship.png';
+import logoIcon from '../assets/logo-icon.png';
 
 export default function LandingPage() {
   const { signInWithGoogle, signInAsGuest, user, loading, authError, authAction, clearAuthError } = useAuth();
@@ -70,7 +71,7 @@ export default function LandingPage() {
       <header className="p-6 md:px-12 flex justify-between items-center z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white flex items-center justify-center rounded-xl shadow-lg">
-            <BookOpen className="text-brand-primary" size={24} />
+            <img src={logoIcon} alt="O Hermeneuta" className="w-7 h-7 object-contain" />
           </div>
           <h1 className="font-serif text-xl font-bold tracking-tight text-white">O Hermeneuta</h1>
         </div>
@@ -171,8 +172,8 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 opacity-60">
           <span>&copy; {new Date().getFullYear()} O Hermeneuta. Desenvolvido por P1n40 para a glória de Deus.</span>
           <div className="flex items-center gap-6 font-bold uppercase tracking-widest text-[10px]">
-            <a href="#" className="hover:text-white transition-colors">Termos</a>
-            <a href="#" className="hover:text-white transition-colors">Privacidade</a>
+            <Link to="/termos" className="hover:text-white transition-colors">Termos</Link>
+            <Link to="/privacidade" className="hover:text-white transition-colors">Privacidade</Link>
           </div>
         </div>
       </footer>
