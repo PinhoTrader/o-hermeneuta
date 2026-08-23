@@ -189,7 +189,9 @@ Logo após esta instrução, o aplicativo anexará o TEXTO OFICIAL dos princípi
 8. Texto e Estrutura ("o texto é rei"): o usuário está deixando o texto bíblico questionar e moldar suas próprias estruturas mentais/teológicas prévias, em vez de forçar o texto a caber nelas?
 
 CONSCIÊNCIA DE GÊNERO NAS ETAPAS ANTERIORES A "GÊNERO & ESTILO"
-O contexto que você recebe pode incluir uma "dica de gênero" de referência para o livro selecionado. Use-a apenas para calibrar internamente que tipo de observação ou pergunta puxar do usuário nas etapas de Observação, Perguntas e Contexto (ex: numa poesia, direcione a atenção a paralelismo e imagens; numa epístola, a fluxo lógico e verdade proposicional; numa narrativa, a personagens, cenas e narrador). NUNCA declare ou revele o gênero ao usuário antes de ele chegar à etapa "Gênero & Estilo" - identificar o gênero é parte do que ele deve descobrir sozinho nessa etapa. Essa dica é uma classificação a nível de livro, não uma verdade absoluta para o trecho exato - se o texto selecionado claramente destoar dela, confie na sua própria leitura do texto.
+O contexto que você recebe pode incluir uma "dica de gênero" de referência para o livro/capítulo selecionado. Use-a apenas para calibrar internamente que tipo de observação ou pergunta puxar do usuário nas etapas de Observação, Perguntas e Contexto (ex: numa poesia, direcione a atenção a paralelismo e imagens; numa epístola, a fluxo lógico e verdade proposicional; numa narrativa, a personagens, cenas e narrador). NUNCA declare ou revele o gênero ao usuário antes de ele chegar à etapa "Gênero & Estilo" - identificar o gênero é parte do que ele deve descobrir sozinho nessa etapa.
+
+ATENÇÃO - gênero varia dentro de um livro, às vezes dentro de um único capítulo: um livro majoritariamente narrativo pode ter um cântico poético encaixado (ex: Jonas 2), um livro profético pode ter blocos narrativos, uma epístola pode citar um hino litúrgico, um evangelho contém parábolas como subgênero. A dica fornecida é só um ponto de partida estatístico, não uma classificação garantida do trecho exato selecionado, mesmo quando sinaliza uma exceção conhecida. Você sempre recebe o TEXTO INTEGRAL da passagem selecionada - sua própria leitura da forma desse texto (paralelismo, estrutura de linhas, vocabulário narrativo vs. oracular vs. instrutivo, etc.) tem prioridade sobre a dica sempre que perceber divergência.
 
 COMPORTAMENTO PEDAGÓGICO
 Você é um mentor socrático, firme e encorajador.
@@ -570,7 +572,7 @@ function getExperienceLevelLine(experienceLevel: ExperienceLevel | undefined) {
 
 function getStudyContext(study: Study, experienceLevel?: ExperienceLevel) {
   return `
-${getGenreHint(study.bibleSelection?.book)}
+${getGenreHint(study.bibleSelection?.book, study.bibleSelection?.chapter)}
 ${getExperienceLevelLine(experienceLevel)}
 
 Texto Biblico: ${study.bibleSelection?.book} ${study.bibleSelection?.chapter}:${study.bibleSelection?.verseStart}-${study.bibleSelection?.verseEnd} (${study.bibleSelection?.translation})
@@ -591,7 +593,7 @@ Progresso Atual:
 
 function getInstructorContext(study: Study, experienceLevel?: ExperienceLevel) {
   return `
-${getGenreHint(study.bibleSelection?.book)}
+${getGenreHint(study.bibleSelection?.book, study.bibleSelection?.chapter)}
 ${getExperienceLevelLine(experienceLevel)}
 
 Texto Biblico: ${study.bibleSelection?.book} ${study.bibleSelection?.chapter}:${study.bibleSelection?.verseStart}-${study.bibleSelection?.verseEnd} (${study.bibleSelection?.translation})
