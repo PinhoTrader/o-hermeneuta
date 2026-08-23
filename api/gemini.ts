@@ -1,9 +1,10 @@
 import { GoogleGenAI } from '@google/genai';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { Study } from '../src/types';
+import type { ExperienceLevel, Study } from '../src/types';
 import firebaseConfig from '../firebase-applet-config.json';
 import { getMethodContextForStage, getFullMethodText } from './cavarEDescobrirPrinciples';
+import { getGenreHint } from './bibleBookGenres';
 
 type ChatHistoryItem = {
   role: 'user' | 'model';
@@ -18,6 +19,7 @@ type GeminiRequestBody =
       payload: {
         stage: string;
         study: Study;
+        experienceLevel?: ExperienceLevel;
       };
     }
   | {
@@ -25,6 +27,7 @@ type GeminiRequestBody =
       payload: {
         question: string;
         study: Study;
+        experienceLevel?: ExperienceLevel;
       };
     }
   | {
@@ -67,6 +70,7 @@ type MentorMethodStep =
   | 'rota_direta'
   | null;
 type MentorBase = 'texto_do_usuario' | 'texto_biblico_do_contexto' | 'ambos';
+type MentorLevel = ExperienceLevel | null;
 
 type MentorStructuredResponse = {
   desvioDetectado: MentorDeviation;
@@ -77,6 +81,11 @@ type MentorStructuredResponse = {
   dica?: string | null;
   etapaMetodo: MentorMethodStep;
   baseUsada: MentorBase;
+  // Nível de proficiência que o Instrutor percebe pela interação atual - uso
+  // interno só (nunca aparece em formatMentorText). Pode divergir do nível
+  // autodeclarado enviado no contexto; quando divergir, o servidor ajusta
+  // UserProfile.experienceLevel (ver updatePerceivedLevel).
+  nivelPercebido: MentorLevel;
 };
 
 const modelName = 'gemini-3-flash-preview';
@@ -89,6 +98,11 @@ const MAX_MESSAGE_LENGTH = 4000;
 const MAX_CONTEXT_FIELD_LENGTH = 12000;
 const MAX_HISTORY_ITEMS = 6;
 const MAX_GUEST_REQUESTS_PER_DAY = 5;
+// TODO(custo): estes 2 limites foram escolhidos sem amostra real de uso.
+// Assim que houver volume de usuários ativos por um período (ex.: primeiro mês
+// com adoção real), reavaliar contra o custo real da API Gemini nesse período
+// (console do Google AI Studio / Cloud Billing) — hoje o Gemini é o candidato
+// mais provável a virar o maior custo do projeto, não o Firebase.
 const MAX_USER_REQUESTS_PER_DAY = 30;
 
 // Sentinel studyId reserved for the server-side daily quota counter, stored in the
@@ -174,6 +188,9 @@ Logo após esta instrução, o aplicativo anexará o TEXTO OFICIAL dos princípi
 7. Teologia Bíblica: quando houver base suficiente, ajude o usuário a enxergar como a passagem se conecta à história da redenção e ao foco e cumprimento em Cristo. Nunca force essa conexão.
 8. Texto e Estrutura ("o texto é rei"): o usuário está deixando o texto bíblico questionar e moldar suas próprias estruturas mentais/teológicas prévias, em vez de forçar o texto a caber nelas?
 
+CONSCIÊNCIA DE GÊNERO NAS ETAPAS ANTERIORES A "GÊNERO & ESTILO"
+O contexto que você recebe pode incluir uma "dica de gênero" de referência para o livro selecionado. Use-a apenas para calibrar internamente que tipo de observação ou pergunta puxar do usuário nas etapas de Observação, Perguntas e Contexto (ex: numa poesia, direcione a atenção a paralelismo e imagens; numa epístola, a fluxo lógico e verdade proposicional; numa narrativa, a personagens, cenas e narrador). NUNCA declare ou revele o gênero ao usuário antes de ele chegar à etapa "Gênero & Estilo" - identificar o gênero é parte do que ele deve descobrir sozinho nessa etapa. Essa dica é uma classificação a nível de livro, não uma verdade absoluta para o trecho exato - se o texto selecionado claramente destoar dela, confie na sua própria leitura do texto.
+
 COMPORTAMENTO PEDAGÓGICO
 Você é um mentor socrático, firme e encorajador.
 - pergunte mais do que afirme;
@@ -187,6 +204,8 @@ Adapte-se ao nível do usuário:
 - iniciante: perguntas mais simples e guiadas;
 - intermediário: perguntas analíticas;
 - avançado: perguntas mais estruturais e críticas.
+
+O contexto pode incluir um "nível autodeclarado" pelo usuário - use-o como ponto de partida. Mas calibre pelo que você observa na interação atual: se as respostas do usuário demonstrarem um nível diferente do autodeclarado (mais simples ou mais sofisticado), ajuste sua abordagem em tempo real e reporte no campo "nivelPercebido" o nível que você percebe agora, mesmo que divirja do autodeclarado. Se não houver sinal suficiente para perceber isso com confiança, reporte null. Esse campo é só para uso interno do sistema - nunca mencione nível, autodeclarado ou percebido, na sua resposta ao usuário.
 
 Se o usuário travar, simplifique a pergunta e ofereça uma única pista curta, sem dar a resposta completa.
 Se o usuário repetir o mesmo erro, mude a abordagem, peça evidência textual e convide-o a mostrar onde isso aparece no texto.
@@ -217,7 +236,8 @@ Responda sempre em JSON válido, sem Markdown, sem bloco de código e sem texto 
   "proximaPergunta": "uma única pergunta vigorosa e objetiva, ou string vazia quando não houver pergunta",
   "dica": "opcional; use apenas se o usuário demonstrar dificuldade",
   "etapaMetodo": "linha" | "boas_perguntas" | "genero" | "estrutura" | "contexto" | "ideia_principal" | "intento_transformador" | "teologia_biblica" | "texto_estrutura" | "rota_direta" | null,
-  "baseUsada": "texto_do_usuario" | "texto_biblico_do_contexto" | "ambos"
+  "baseUsada": "texto_do_usuario" | "texto_biblico_do_contexto" | "ambos",
+  "nivelPercebido": "iniciante" | "intermediario" | "avancado" | null
 }
 
 LIMITES IMPORTANTES
@@ -395,6 +415,43 @@ export async function reserveUserQuota(identity: Extract<RequestIdentity, { kind
   return true;
 }
 
+// Ajuste silencioso de UserProfile.experienceLevel a partir do que o
+// Instrutor percebeu na interação atual (nivelPercebido). Efeito colateral
+// não-crítico: falha é logada, nunca derruba a resposta principal ao
+// usuário. Usa o idToken do próprio usuário (mesmo padrão de
+// reserveUserQuota) - Firestore trata a escrita como o próprio dono do
+// documento, então as regras existentes já permitem sem afrouxar nada.
+// Nota: o app não tem listener em tempo real no perfil (só getDoc no
+// login), então o ajuste só é percebido pelo cliente na próxima sessão.
+async function updatePerceivedLevel(identity: Extract<RequestIdentity, { kind: 'user' }>, level: ExperienceLevel): Promise<void> {
+  const documentName = `projects/${FIREBASE_PROJECT_ID}/databases/${firebaseConfig.firestoreDatabaseId}/documents/users/${identity.uid}`;
+  const headers = {
+    Authorization: `Bearer ${identity.idToken}`,
+    'Content-Type': 'application/json',
+  };
+
+  const commitResponse = await fetch(`${FIRESTORE_DOCUMENTS_URL}:commit`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      writes: [
+        {
+          update: {
+            name: documentName,
+            fields: { experienceLevel: { stringValue: level } },
+          },
+          updateMask: { fieldPaths: ['experienceLevel'] },
+          currentDocument: { exists: true },
+        },
+      ],
+    }),
+  });
+
+  if (!commitResponse.ok) {
+    console.error(`updatePerceivedLevel: falha ao atualizar nível (status ${commitResponse.status}).`);
+  }
+}
+
 async function reserveQuota(identity: RequestIdentity): Promise<boolean> {
   if (identity.kind === 'guest') {
     return reserveGuestQuota(identity);
@@ -468,6 +525,10 @@ function validateBody(body: Partial<GeminiRequestBody>) {
   return null;
 }
 
+function normalizeExperienceLevel(value: unknown): ExperienceLevel | undefined {
+  return isExperienceLevel(value) ? value : undefined;
+}
+
 function normalizeBody(body: GeminiRequestBody): GeminiRequestBody {
   if (body.action === 'stageFeedback') {
     return {
@@ -475,6 +536,7 @@ function normalizeBody(body: GeminiRequestBody): GeminiRequestBody {
       payload: {
         stage: truncateText(body.payload.stage, 100),
         study: sanitizeStudy(body.payload.study),
+        experienceLevel: normalizeExperienceLevel(body.payload.experienceLevel),
       },
     };
   }
@@ -485,6 +547,7 @@ function normalizeBody(body: GeminiRequestBody): GeminiRequestBody {
       payload: {
         question: truncateText(body.payload.question, MAX_MESSAGE_LENGTH),
         study: sanitizeStudy(body.payload.study),
+        experienceLevel: normalizeExperienceLevel(body.payload.experienceLevel),
       },
     };
   }
@@ -501,8 +564,15 @@ function normalizeBody(body: GeminiRequestBody): GeminiRequestBody {
   };
 }
 
-function getStudyContext(study: Study) {
+function getExperienceLevelLine(experienceLevel: ExperienceLevel | undefined) {
+  return `Nivel autodeclarado do usuario: ${experienceLevel || 'nao informado'}`;
+}
+
+function getStudyContext(study: Study, experienceLevel?: ExperienceLevel) {
   return `
+${getGenreHint(study.bibleSelection?.book)}
+${getExperienceLevelLine(experienceLevel)}
+
 Texto Biblico: ${study.bibleSelection?.book} ${study.bibleSelection?.chapter}:${study.bibleSelection?.verseStart}-${study.bibleSelection?.verseEnd} (${study.bibleSelection?.translation})
 Conteudo do Texto: ${study.bibleSelection?.text}
 
@@ -519,8 +589,11 @@ Progresso Atual:
 `;
 }
 
-function getInstructorContext(study: Study) {
+function getInstructorContext(study: Study, experienceLevel?: ExperienceLevel) {
   return `
+${getGenreHint(study.bibleSelection?.book)}
+${getExperienceLevelLine(experienceLevel)}
+
 Texto Biblico: ${study.bibleSelection?.book} ${study.bibleSelection?.chapter}:${study.bibleSelection?.verseStart}-${study.bibleSelection?.verseEnd} (${study.bibleSelection?.translation})
 Conteudo do Texto: ${study.bibleSelection?.text}
 Observacoes do Usuario: <observacoes_usuario>${study.observations || 'Nenhuma'}</observacoes_usuario>
@@ -555,6 +628,14 @@ function isMentorMethodStep(value: unknown): value is MentorMethodStep {
 
 function isMentorBase(value: unknown): value is MentorBase {
   return value === 'texto_do_usuario' || value === 'texto_biblico_do_contexto' || value === 'ambos';
+}
+
+function isExperienceLevel(value: unknown): value is ExperienceLevel {
+  return value === 'iniciante' || value === 'intermediario' || value === 'avancado';
+}
+
+function isMentorLevel(value: unknown): value is MentorLevel {
+  return value === null || isExperienceLevel(value);
 }
 
 function normalizeOptionalText(value: unknown) {
@@ -657,6 +738,15 @@ function parseMentorResponse(rawText: string): MentorStructuredResponse | null {
       return null;
     }
 
+    // Tolerante a ausência (campo novo, modelo pode ocasionalmente omitir) -
+    // trata como "sem sinal" em vez de invalidar a resposta inteira, mas
+    // ainda rejeita um valor presente e fora do enum esperado.
+    const nivelPercebidoRaw = parsed.nivelPercebido ?? null;
+    if (!isMentorLevel(nivelPercebidoRaw)) {
+      console.error('parseMentorResponse: nivelPercebido inválido');
+      return null;
+    }
+
     const result: MentorStructuredResponse = {
       desvioDetectado: parsed.desvioDetectado,
       gravidade: parsed.gravidade,
@@ -666,6 +756,7 @@ function parseMentorResponse(rawText: string): MentorStructuredResponse | null {
       dica: normalizeOptionalText(parsed.dica),
       etapaMetodo: parsed.etapaMetodo,
       baseUsada: parsed.baseUsada,
+      nivelPercebido: nivelPercebidoRaw,
     };
 
     checkMentorStyleDrift(result);
@@ -750,40 +841,63 @@ export function formatMentorText(rawText: string | undefined) {
   return parts.join('\n\n');
 }
 
-async function generateText(body: GeminiRequestBody) {
+// Se o Instrutor percebeu um nível diferente do autodeclarado, ajusta
+// UserProfile.experienceLevel silenciosamente (só para usuário autenticado -
+// convidado não tem documento em users/ para atualizar). Nunca lança: uma
+// falha aqui não deve derrubar a resposta principal ao usuário.
+async function maybeAdjustPerceivedLevel(
+  identity: RequestIdentity,
+  rawText: string | undefined,
+  currentLevel: ExperienceLevel | undefined
+) {
+  if (identity.kind !== 'user' || !rawText) return;
+
+  const parsed = parseMentorResponse(rawText);
+  if (!parsed?.nivelPercebido || parsed.nivelPercebido === currentLevel) return;
+
+  try {
+    await updatePerceivedLevel(identity, parsed.nivelPercebido);
+  } catch (error) {
+    console.error('maybeAdjustPerceivedLevel error:', error);
+  }
+}
+
+async function generateText(body: GeminiRequestBody, identity: RequestIdentity) {
   const ai = getAiClient();
   if (!ai) {
     return { status: 503, body: { error: MISSING_API_KEY_MESSAGE } };
   }
 
   if (body.action === 'stageFeedback') {
-    const { stage, study } = body.payload;
+    const { stage, study, experienceLevel } = body.payload;
     const prompt = `Estou na etapa "${stage}". Analise meu progresso ate agora e me de um feedback sobre como estou indo e o que posso aprofundar nesta etapa, sem me dar a resposta final.`;
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: [{ role: 'user', parts: [{ text: `${getStudyContext(study)}\n\n${prompt}` }] }],
+      contents: [{ role: 'user', parts: [{ text: `${getStudyContext(study, experienceLevel)}\n\n${prompt}` }] }],
       config: {
         systemInstruction: `${SYSTEM_INSTRUCTION}\n\n${getMethodContextForStage(stage)}`,
         temperature: 0.7,
       },
     });
 
+    await maybeAdjustPerceivedLevel(identity, response.text, experienceLevel);
     return { status: 200, body: { text: formatMentorText(response.text) } };
   }
 
   if (body.action === 'askInstructor') {
-    const { question, study } = body.payload;
+    const { question, study, experienceLevel } = body.payload;
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: [{ role: 'user', parts: [{ text: `${getInstructorContext(study)}\n\nPergunta do Usuario: <pergunta_usuario>${question}</pergunta_usuario>` }] }],
+      contents: [{ role: 'user', parts: [{ text: `${getInstructorContext(study, experienceLevel)}\n\nPergunta do Usuario: <pergunta_usuario>${question}</pergunta_usuario>` }] }],
       config: {
         systemInstruction: `${SYSTEM_INSTRUCTION}\n\n${getFullMethodText()}`,
         temperature: 0.7,
       },
     });
 
+    await maybeAdjustPerceivedLevel(identity, response.text, experienceLevel);
     return { status: 200, body: { text: formatMentorText(response.text) } };
   }
 
@@ -830,7 +944,7 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
     }
 
     const normalizedBody = normalizeBody(rawBody as GeminiRequestBody);
-    const result = await generateText(normalizedBody);
+    const result = await generateText(normalizedBody, identity);
     sendJson(res, result.status, result.body);
   } catch (error) {
     console.error('Gemini API route error:', error);

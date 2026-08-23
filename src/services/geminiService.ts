@@ -1,4 +1,4 @@
-import { Study } from "../types";
+import { ExperienceLevel, Study } from "../types";
 import { auth } from "../lib/firebase";
 
 const REQUEST_ERROR_MESSAGE = "Desculpe, estou com dificuldades para processar sua mensagem agora.";
@@ -90,18 +90,18 @@ async function callGeminiApi(action: GeminiAction, payload: unknown) {
   return data.text || REQUEST_ERROR_MESSAGE;
 }
 
-export async function getStageFeedback(stage: string, study: Study) {
+export async function getStageFeedback(stage: string, study: Study, experienceLevel?: ExperienceLevel) {
   try {
-    return await callGeminiApi('stageFeedback', { stage, study });
+    return await callGeminiApi('stageFeedback', { stage, study, experienceLevel });
   } catch (error) {
     console.error("Gemini Error:", error);
     return "Desculpe, tive um problema ao analisar seu estudo. Tente novamente em instantes.";
   }
 }
 
-export async function askInstructor(question: string, study: Study) {
+export async function askInstructor(question: string, study: Study, experienceLevel?: ExperienceLevel) {
   try {
-    return await callGeminiApi('askInstructor', { question, study });
+    return await callGeminiApi('askInstructor', { question, study, experienceLevel });
   } catch (error) {
     console.error("Gemini Error:", error);
     return "Desculpe, não consegui responder agora. Tente novamente.";

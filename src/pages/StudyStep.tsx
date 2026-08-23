@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStudy } from '../context/StudyContext';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Sparkles, Save, ChevronLeft, ChevronRight, HelpCircle, AlertTriangle } from 'lucide-react';
@@ -22,6 +23,7 @@ interface StudyStepProps {
 
 export default function StudyStep({ title, field, description, placeholder, methodTip, onNext, onBack }: StudyStepProps) {
   const { currentStudy, updateCurrentStudy } = useStudy();
+  const { profile } = useAuth();
   const [content, setSelection] = useState<string>((currentStudy as any)?.[field] || '');
   const [lastSavedContent, setLastSavedContent] = useState<string>((currentStudy as any)?.[field] || '');
   const [aiFeedback, setAiFeedback] = useState<string | null>(null);
@@ -145,7 +147,7 @@ export default function StudyStep({ title, field, description, placeholder, meth
     setAiFeedback(null);
     setAiError(null);
     try {
-      const feedback = await getStageFeedback(title, { ...currentStudy, [field]: content } as any);
+      const feedback = await getStageFeedback(title, { ...currentStudy, [field]: content } as any, profile?.experienceLevel);
       setAiFeedback(feedback);
     } catch (err) {
       console.error('[AI Review] Error:', err);

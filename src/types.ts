@@ -59,6 +59,8 @@ export interface Message {
   timestamp: number;
 }
 
+export type ExperienceLevel = 'iniciante' | 'intermediario' | 'avancado';
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -72,6 +74,9 @@ export interface UserProfile {
   isContributor?: boolean;
   isApproved: boolean;
   groupIds?: string[];
+  // Autodeclarado pelo usuário em EditProfile; pode ser ajustado pelo
+  // Instrutor de IA ao longo do tempo (ver nivelPercebido em api/gemini.ts).
+  experienceLevel?: ExperienceLevel;
   createdAt: number;
   updatedAt?: number;
 }
@@ -106,6 +111,11 @@ export interface Lesson {
   content: string; // Markdown
   order: number;
   quiz?: QuizQuestion[];
+  // Vídeo: sempre YouTube não-listado (youtubeVideoId), nunca Firebase Storage —
+  // banda de vídeo no Storage escala mal com número de usuários. PDF de aula pode
+  // ir para Firebase Storage normalmente (arquivo leve, banda baixa).
+  youtubeVideoId?: string;
+  pdfUrl?: string;
 }
 
 export interface AcademyModule {

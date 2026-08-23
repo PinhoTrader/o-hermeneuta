@@ -58,6 +58,21 @@ fica aberta a documentos arbitrariamente grandes (poisoning). Escolher o
 limite pelo campo mais parecido já na tabela (texto curto ~100-1000, texto
 longo ~10000-50000, texto muito longo como sermão detalhado ~100000).
 
+## `users.experienceLevel` — escrito por dois lados diferentes (2026-08-23)
+
+Campo novo (`'iniciante' | 'intermediario' | 'avancado'`, validado em
+`isValidUser` como os demais enums). Diferente de `phone`/`denomination`
+(só o próprio dono edita via `EditProfile.tsx`), este campo tem **dois
+escritores**: o próprio usuário (autodeclaração) e `api/gemini.ts` (ajuste
+silencioso pelo Instrutor de IA, via `updatePerceivedLevel`, usando o
+idToken do próprio usuário repassado pelo cliente - ver `padrao-prompt-ia`).
+Para `firestore.rules`, os dois casos são idênticos: é sempre `isOwner(userId)`
+gravando, porque a chamada server-side usa a identidade do próprio usuário,
+não uma credencial de admin - **nenhuma regra nova foi necessária**, a regra
+de update existente (`isOwner(userId) && isValidUser(incoming()) && role/isApproved
+inalterados`) já cobre os dois escritores. Não confundir com o padrão de
+"só admin escreve" de `role`/`isApproved`.
+
 ## Anti-spoofing já em produção (não remover)
 
 - `studies`: `createdAt` é imutável no update

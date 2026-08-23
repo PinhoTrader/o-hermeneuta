@@ -89,6 +89,7 @@ exatamente essa mesma sequência das 3 existentes.
                "contexto" | "ideia_principal" | "intento_transformador" |
                "teologia_biblica" | "texto_estrutura" | "rota_direta" | null,
   baseUsada: "texto_do_usuario" | "texto_biblico_do_contexto" | "ambos",
+  nivelPercebido: "iniciante" | "intermediario" | "avancado" | null,
 }
 ```
 
@@ -156,6 +157,38 @@ do Google, `issuer`/`audience`/`exp` validados por `jose`) — ver seção
 "JWT" abaixo. Convidado: header `X-Hermeneuta-Guest-Id`, regex
 `^guest_[a-zA-Z0-9_-]{4,64}$`. Qualquer rota nova de IA precisa aceitar os
 dois caminhos de identidade — não assumir que todo usuário está logado.
+
+## Consciência de gênero e nível do aluno (2026-08-23)
+
+Duas lacunas pedagógicas fechadas nesta revisão, ambas descobertas porque o
+contexto (`bibleSelection.book`) já ia para a IA desde a etapa de Observação,
+mas nada instruía a usá-lo cedo, e a instrução "adapte-se ao nível do
+usuário" nunca teve nenhum dado real para se basear.
+
+- **Dica de gênero** (`api/bibleBookGenres.ts`, `getGenreHint`) — tabela
+  determinística livro→gênero (66 livros, categorias do próprio livreto),
+  injetada em `getStudyContext`/`getInstructorContext` em toda etapa, não só
+  em "Gênero & Estilo". Regra explícita no `SYSTEM_INSTRUCTION`: a IA usa
+  isso só para calibrar que tipo de observação puxar do aluno - **nunca**
+  para anunciar o gênero antes da etapa certa (identificá-lo é parte do que
+  o método ensina o aluno a fazer sozinho). Livros de gênero
+  misto/contestado (Jó, Cantares, Jonas, Daniel) carregam um `caveat` no
+  texto injetado, para a IA não tratar a classificação como absoluta.
+
+- **Nível do aluno** (`UserProfile.experienceLevel` em `src/types.ts`) —
+  autodeclarado uma vez em `EditProfile.tsx`, enviado no payload de
+  `stageFeedback`/`askInstructor` (campo `experienceLevel`, opcional) e
+  injetado no contexto via `getExperienceLevelLine`. O modelo relata de
+  volta, no campo **interno** `nivelPercebido` do JSON (nunca renderizado em
+  `formatMentorText` - mesma categoria de `etapaMetodo`/`baseUsada`), o
+  nível que percebeu na interação atual. Se divergir do autodeclarado,
+  `maybeAdjustPerceivedLevel` grava a atualização direto em
+  `users/{uid}.experienceLevel` via REST do Firestore com o idToken do
+  próprio usuário (mesmo padrão de `reserveUserQuota`) - efeito colateral
+  não-crítico, silencioso, nunca derruba a resposta principal se falhar.
+  **Limitação conhecida**: o app não tem listener em tempo real no perfil
+  (só `getDoc` no login em `AuthContext.tsx`), então esse ajuste só é
+  percebido pelo cliente na próxima sessão, não na aba já aberta.
 
 ## JWT — verificação real de assinatura, resolvido em 2026-08-17
 

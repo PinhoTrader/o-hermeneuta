@@ -59,6 +59,7 @@ service cloud.firestore {
              (data.get('age', null) == null || (data.age is int && data.age >= 1 && data.age <= 120)) &&
              (data.get('denomination', null) == null || (data.denomination is string && data.denomination.size() <= 100)) &&
              (data.get('isContributor', null) == null || data.isContributor is bool) &&
+             (data.get('experienceLevel', null) == null || data.experienceLevel in ['iniciante', 'intermediario', 'avancado']) &&
              (data.get('updatedAt', null) == null || data.updatedAt is timestamp);
     }
 
