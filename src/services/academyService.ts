@@ -9,6 +9,9 @@ import { db, OperationType, handleFirestoreError } from '../lib/firebase';
 import { AcademyModule, AcademyProgress } from '../types';
 
 // The "Cavar & Descobrir" Methodology Content
+// Ao gravar as 20 videoaulas: subir cada uma como "não listado" no YouTube e
+// preencher Lesson.youtubeVideoId (ver types.ts) — não usar Firebase Storage
+// para vídeo, é o item de maior risco de custo do projeto em escala.
 export const ACADEMY_CONTENT: AcademyModule[] = [
   {
     id: 'intro',

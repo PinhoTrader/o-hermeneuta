@@ -190,6 +190,41 @@ usuário" nunca teve nenhum dado real para se basear.
   (só `getDoc` no login em `AuthContext.tsx`), então esse ajuste só é
   percebido pelo cliente na próxima sessão, não na aba já aberta.
 
+## Técnicas de engajamento pedagógico (2026-08-23)
+
+Seção `TÉCNICAS DE ENGAJAMENTO` no `SYSTEM_INSTRUCTION`, adicionada a partir
+de pesquisa do dono do produto (via NotebookLM) sobre técnicas de ensino de
+três fontes de hermenêutica - **não conteúdo hermenêutico delas, só a forma
+de ensinar**: Henry Virkler (estudos de caso/"exercícios DM" onde o usuário
+julga um cenário fictício), David I. Starling (convidar o usuário a imitar
+o procedimento do próprio autor bíblico), Richard Palmer/Gadamer
+("fortalecer o argumento do usuário antes de desafiá-lo", pergunta aberta
+tipo "não será que...?").
+
+**Distinção que motivou isto**: o dono do produto foi explícito que o
+objetivo é ampliar a *forma de ensinar* o método já fixo, nunca acrescentar
+princípio ou conteúdo hermenêutico novo (isso ficaria em
+`cavarEDescobrirPrinciples.ts`, e não foi tocado aqui). Mudança de
+comportamento/didática é território técnico normal; mudança de conteúdo
+doutrinário não é - ver regra no topo desta skill.
+
+**Ressalva importante identificada durante a revisão, não presente no
+material de origem**: a técnica de Palmer vem de Gadamer, cuja filosofia
+hermenêutica rejeita que exista um sentido fixo do autor a ser recuperado
+(diálogo como processo sem fim, não convergente). Usar só a *forma*
+dialética dele ("fortalecer antes de desafiar") sem essa premissa exigiu um
+parágrafo de trava explícito logo após a lista de técnicas ("não adote a
+postura de que a interpretação é um processo sem fim...") - remover essa
+trava se a seção for editada no futuro reintroduziria uma tensão doutrinária
+real com Ideia Principal/Intento Transformador (P6).
+
+Duas correções pontuais feitas junto, achadas ao comparar com um rascunho
+externo: a lista de princípios no próprio `SYSTEM_INSTRUCTION` não numerava
+"Estude o Sermão" como 9º princípio (só ia até 8, "Texto e Estrutura"),
+mesmo esse princípio já existindo em `cavarEDescobrirPrinciples.ts` desde
+2026-08-22; e a calibração de nível (iniciante/intermediário/avançado) era
+vaga demais, agora amarrada a conteúdo concreto por nível.
+
 ## JWT — verificação real de assinatura, resolvido em 2026-08-17
 
 `verifyFirebaseIdToken` (`api/gemini.ts`) substitui o antigo
