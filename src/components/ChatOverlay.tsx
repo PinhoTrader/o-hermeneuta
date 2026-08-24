@@ -247,7 +247,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
                     onClick={() => handleSelectGroup(AI_GROUP)}
                     className="w-full flex items-center gap-4 p-4 rounded-2xl bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-100 text-left relative group overflow-hidden"
                   >
-                    <div className="absolute top-0 right-0 p-1 bg-amber-200 text-[8px] font-black text-amber-700 rounded-bl-lg uppercase">AI Mentor</div>
+                    <div className="absolute top-0 right-0 p-1 bg-amber-200 text-[8px] font-black text-amber-700 rounded-bl-lg uppercase">Mentor IA</div>
                     <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-200">
                       <Sparkles size={24} />
                     </div>
@@ -335,7 +335,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
                     {loadingAi && (
                       <div className="flex flex-col items-start">
                         <div className="flex items-center gap-2 mb-1 px-1">
-                           <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">AI Mentor</span>
+                           <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Instrutor de IA</span>
                         </div>
                         <div className="bg-amber-50 p-4 rounded-2xl rounded-tl-none border border-amber-100">
                           <div className="flex gap-1">
