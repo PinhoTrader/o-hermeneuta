@@ -3,8 +3,8 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ExperienceLevel, Study } from '../src/types';
 import firebaseConfig from '../firebase-applet-config.json' with { type: 'json' };
-import { getMethodContextForStage, getFullMethodText } from './cavarEDescobrirPrinciples';
-import { getGenreHint } from './bibleBookGenres';
+import { getMethodContextForStage, getFullMethodText } from './cavarEDescobrirPrinciples.js';
+import { getGenreHint } from './bibleBookGenres.js';
 
 type ChatHistoryItem = {
   role: 'user' | 'model';
