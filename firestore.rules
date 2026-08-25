@@ -179,7 +179,12 @@ service cloud.firestore {
     }
 
     match /aiUsage/{usageId} {
-      allow get: if isSignedIn() && resource.data.uid == request.auth.uid;
+      // `resource == null` cobre o get de um contador que ainda não existe (ex.:
+      // primeira consulta do dia via reserveUserQuota em api/gemini.ts) - sem essa
+      // checagem, `resource.data.uid` num resource nulo lança erro de avaliação,
+      // que o Firestore trata como 403 (não 404), fazendo reserveUserQuota falhar
+      // "fail closed" e reportar limite diário atingido mesmo sem nenhum uso.
+      allow get: if isSignedIn() && (resource == null || resource.data.uid == request.auth.uid);
       allow create: if isSignedIn() &&
                     incoming().uid == request.auth.uid &&
                     incoming().studyId is string && incoming().studyId.size() <= 128 &&

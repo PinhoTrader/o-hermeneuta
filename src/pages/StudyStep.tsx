@@ -151,7 +151,10 @@ export default function StudyStep({ title, field, description, placeholder, meth
       setAiFeedback(feedback);
     } catch (err) {
       console.error('[AI Review] Error:', err);
-      setAiError('Não foi possível obter a revisão da IA agora. Tente novamente em instantes (o limite diário de revisões também pode ter sido atingido).');
+      const message = err instanceof Error && err.message
+        ? err.message
+        : 'Não foi possível obter a revisão da IA agora. Tente novamente em instantes.';
+      setAiError(message);
     } finally {
       setLoadingAi(false);
     }

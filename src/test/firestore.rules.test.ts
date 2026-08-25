@@ -245,6 +245,16 @@ describe('aiUsage/{usageId} (quota do Instrutor de IA, ver padrao-prompt-ia)', (
     );
   });
 
+  // Regressão: reserveUserQuota (api/gemini.ts) faz esse get exatamente para
+  // saber se o contador diário já existe - antes da correção, resource.data.uid
+  // num resource nulo lançava erro de avaliação (Firestore devolvia 403, não
+  // 404), fazendo TODO usuário autenticado ser bloqueado com "limite diário
+  // atingido" já na primeira consulta do dia, mesmo sem nenhum uso real.
+  it('permite o dono ler seu próprio contador antes dele existir', async () => {
+    const alice = testEnv.authenticatedContext('alice', { email: 'alice@example.com' });
+    await assertSucceeds(getDoc(doc(alice.firestore(), 'aiUsage/alice_daily_2026-08-25')));
+  });
+
   it('nega outro usuário ler o contador de alguém', async () => {
     const bob = testEnv.authenticatedContext('bob', { email: 'bob@example.com' });
 

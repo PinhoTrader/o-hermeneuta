@@ -63,7 +63,7 @@ async function callGeminiApi(action: GeminiAction, payload: unknown) {
     ({ response, data } = await requestGemini(action, payload, true));
   } catch (error) {
     if (error instanceof SessionTokenError) {
-      return SESSION_EXPIRED_MESSAGE;
+      throw new Error(SESSION_EXPIRED_MESSAGE);
     }
     throw error;
   }
@@ -73,46 +73,35 @@ async function callGeminiApi(action: GeminiAction, payload: unknown) {
       ({ response, data } = await requestGemini(action, payload, true));
     } catch (error) {
       if (error instanceof SessionTokenError) {
-        return SESSION_EXPIRED_MESSAGE;
+        throw new Error(SESSION_EXPIRED_MESSAGE);
       }
       throw error;
     }
 
     if (response.status === 401 || response.status === 403) {
-      return SESSION_EXPIRED_MESSAGE;
+      throw new Error(SESSION_EXPIRED_MESSAGE);
     }
   }
 
+  // A resposta de erro do servidor (ex.: limite diário atingido) nunca pode
+  // ser tratada como texto válido do Instrutor - quem chama precisa poder
+  // distinguir "a IA respondeu isto" de "a chamada falhou por isto", senão a
+  // UI acaba exibindo a mensagem de erro como se fosse a fala do mentor.
   if (!response.ok) {
-    return data.error || REQUEST_ERROR_MESSAGE;
+    throw new Error(data.error || REQUEST_ERROR_MESSAGE);
   }
 
   return data.text || REQUEST_ERROR_MESSAGE;
 }
 
 export async function getStageFeedback(stage: string, study: Study, experienceLevel?: ExperienceLevel) {
-  try {
-    return await callGeminiApi('stageFeedback', { stage, study, experienceLevel });
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    return "Desculpe, tive um problema ao analisar seu estudo. Tente novamente em instantes.";
-  }
+  return callGeminiApi('stageFeedback', { stage, study, experienceLevel });
 }
 
 export async function askInstructor(question: string, study: Study, experienceLevel?: ExperienceLevel) {
-  try {
-    return await callGeminiApi('askInstructor', { question, study, experienceLevel });
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    return "Desculpe, não consegui responder agora. Tente novamente.";
-  }
+  return callGeminiApi('askInstructor', { question, study, experienceLevel });
 }
 
 export async function generalAIChat(message: string, history: ChatHistoryItem[] = []) {
-  try {
-    return await callGeminiApi('generalChat', { message, history });
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    return REQUEST_ERROR_MESSAGE;
-  }
+  return callGeminiApi('generalChat', { message, history });
 }
