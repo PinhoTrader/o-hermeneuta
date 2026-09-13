@@ -200,6 +200,23 @@ service cloud.firestore {
       }
     }
 
+    // QA-04: groupService.ts::listUserGroups usa collectionGroup('members')
+    // filtrado por userId pra alunos/monitores/colaboradores listarem as
+    // próprias salas (professores usam outra consulta, por professorId em
+    // /groups direto). Uma regra ANINHADA (match /groups/{id} { match
+    // /members/{id} {...} }) só vale pra leitura por caminho direto/list
+    // dentro de UM grupo conhecido - não autoriza uma collectionGroup query
+    // que varre o subcollection "members" de TODOS os grupos. Sem esta regra
+    // dedicada no nível raiz, a query cai no deny padrão do topo do arquivo
+    // ("false for 'list' @ L6"), mesmo o usuário sendo dono da própria
+    // associação - é o padrão oficial recomendado pelo Firestore pra
+    // collection group queries, coexistindo com a regra aninhada acima (que
+    // continua valendo pra leitura direta de um grupo específico, incl. pelo
+    // professor lendo todos os membros da própria sala).
+    match /{path=**}/members/{memberId} {
+      allow read: if isSignedIn() && isApproved() && (memberId == request.auth.uid || isAdmin());
+    }
+
     match /studies/{studyId} {
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow get: if isOwner(existing().userId);

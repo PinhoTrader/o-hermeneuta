@@ -13,10 +13,14 @@ import {
   doc,
   deleteDoc,
   getDoc,
+  getDocs,
   setDoc,
   updateDoc,
   serverTimestamp,
   Timestamp,
+  collectionGroup,
+  query,
+  where,
 } from 'firebase/firestore';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -461,5 +465,58 @@ describe('groups/{groupId}', () => {
         createdAt: Timestamp.now(),
       })
     );
+  });
+});
+
+describe('collectionGroup("members") - QA-04 (groupService.ts::listUserGroups)', () => {
+  // groupService.ts usa collectionGroup('members').where('userId','==',uid)
+  // pra alunos/monitores/colaboradores listarem as próprias salas (professor
+  // usa outra consulta, por professorId em /groups). Regra ANINHADA
+  // (match /groups/{id} { match /members/{id} {...} }) não vale pra
+  // collectionGroup query - precisa da regra dedicada em /{path=**}/members.
+  async function seedGroupWithMember() {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'groups/group-1'), {
+        name: 'Turma de Efésios',
+        professorId: 'prof-1',
+        createdAt: Timestamp.now(),
+      });
+      await setDoc(doc(context.firestore(), 'groups/group-1/members/aluno-1'), {
+        userId: 'aluno-1',
+        groupId: 'group-1',
+        groupName: 'Turma de Efésios',
+        professorId: 'prof-1',
+        role: 'student',
+      });
+      await setDoc(doc(context.firestore(), 'users/aluno-1'), {
+        email: 'aluno1@example.com',
+        role: 'student',
+        isApproved: true,
+        createdAt: Timestamp.now(),
+      });
+    });
+  }
+
+  it('permite o próprio aluno listar as próprias associações via collectionGroup', async () => {
+    await seedGroupWithMember();
+    const aluno = testEnv.authenticatedContext('aluno-1', { email: 'aluno1@example.com' });
+    const q = query(collectionGroup(aluno.firestore(), 'members'), where('userId', '==', 'aluno-1'));
+    await assertSucceeds(getDocs(q));
+  });
+
+  it('nega listar associação de outra pessoa via collectionGroup, mesmo filtrando pelo userId dela', async () => {
+    await seedGroupWithMember();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users/mallory'), {
+        email: 'mallory@example.com',
+        role: 'student',
+        isApproved: true,
+        createdAt: Timestamp.now(),
+      });
+    });
+
+    const mallory = testEnv.authenticatedContext('mallory', { email: 'mallory@example.com' });
+    const q = query(collectionGroup(mallory.firestore(), 'members'), where('userId', '==', 'aluno-1'));
+    await assertFails(getDocs(q));
   });
 });
