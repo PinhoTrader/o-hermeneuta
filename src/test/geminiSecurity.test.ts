@@ -97,7 +97,10 @@ describe('reserveUserQuota', () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ fields: { queryCount: { integerValue: '2' } } }), { status: 200 })
+        new Response(
+          JSON.stringify({ fields: { queryCount: { integerValue: '2' } }, updateTime: '2026-09-13T10:00:00.000000Z' }),
+          { status: 200 }
+        )
       )
       .mockResolvedValueOnce(new Response('{}', { status: 200 }));
 
@@ -115,7 +118,92 @@ describe('reserveUserQuota', () => {
     expect(write.update.fields.queryCount).toEqual({ integerValue: '3' });
     expect(write.update.fields.uid).toEqual({ stringValue: 'uid-abc' });
     expect(write.updateTransforms).toEqual([{ fieldPath: 'lastQueryAt', setToServerValue: 'REQUEST_TIME' }]);
-    expect(write.currentDocument).toEqual({ exists: true });
+    expect(write.currentDocument).toEqual({ updateTime: '2026-09-13T10:00:00.000000Z' });
+  });
+
+  it('retries after a FAILED_PRECONDITION commit (lost race with a concurrent request) and succeeds on reread', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      // First GET: count is 2, at version t0.
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ fields: { queryCount: { integerValue: '2' } }, updateTime: '2026-09-13T10:00:00.000000Z' }),
+          { status: 200 }
+        )
+      )
+      // First commit loses the race: a concurrent request already wrote t1.
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { status: 'FAILED_PRECONDITION', message: 'stale version' } }), {
+          status: 400,
+        })
+      )
+      // Reread sees the concurrent request's write: count is now 3, at version t1.
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ fields: { queryCount: { integerValue: '3' } }, updateTime: '2026-09-13T10:00:01.000000Z' }),
+          { status: 200 }
+        )
+      )
+      // Second commit succeeds against the fresh version.
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    const allowed = await reserveUserQuota(identity);
+
+    expect(allowed).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    const [, secondCommitInit] = fetchMock.mock.calls[3];
+    const body = JSON.parse(String(secondCommitInit?.body));
+    expect(body.writes[0].update.fields.queryCount).toEqual({ integerValue: '4' });
+    expect(body.writes[0].currentDocument).toEqual({ updateTime: '2026-09-13T10:00:01.000000Z' });
+  });
+
+  it('fails closed after exhausting retries when the precondition keeps failing', async () => {
+    const fetchMock = vi.mocked(fetch);
+    for (let i = 0; i < 3; i += 1) {
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ fields: { queryCount: { integerValue: '2' } }, updateTime: `2026-09-13T10:00:0${i}.000000Z` }),
+            { status: 200 }
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ error: { status: 'FAILED_PRECONDITION', message: 'stale version' } }), {
+            status: 400,
+          })
+        );
+    }
+
+    await expect(reserveUserQuota(identity)).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it('denies the request on reread without retrying the commit once the limit is reached mid-race', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ fields: { queryCount: { integerValue: '29' } }, updateTime: '2026-09-13T10:00:00.000000Z' }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { status: 'FAILED_PRECONDITION', message: 'stale version' } }), {
+          status: 400,
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ fields: { queryCount: { integerValue: '30' } }, updateTime: '2026-09-13T10:00:01.000000Z' }),
+          { status: 200 }
+        )
+      );
+
+    const allowed = await reserveUserQuota(identity);
+
+    expect(allowed).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('treats a missing document (404) as count 0 and uses currentDocument.exists=false on create', async () => {

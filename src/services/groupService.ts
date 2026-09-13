@@ -60,64 +60,81 @@ export async function createGroup(name: string, professorId: string): Promise<st
   }
 }
 
-export async function listUserGroups(userId: string, role: string): Promise<Group[]> {
+// ARQ-02: uma sala pode ser criada por professor, monitor ou admin
+// (createGroup grava o dono em professorId pra qualquer papel), mas o dono
+// NUNCA ganha um doc em members - só quem entra via joinGroup tem isso. Por
+// isso a busca por propriedade (professorId == userId em /groups) e a busca
+// por associação (collectionGroup('members') por userId) rodam sempre as
+// duas, para qualquer role, e são combinadas por id. Antes disso, um
+// monitor/admin dono de sala via o if/else escolher só o branch de
+// membership (por não ser role === 'professor' exato) e a sala sumia ao
+// recarregar a página, mesmo tendo aparecido na hora via estado local.
+export async function listUserGroups(userId: string, _role?: string): Promise<Group[]> {
   const path = 'groups';
   try {
-    if (role === 'professor') {
-      const q = query(
-        collection(db, 'groups'),
-        where('professorId', '==', userId)
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Group));
+    const ownedQuery = query(
+      collection(db, 'groups'),
+      where('professorId', '==', userId)
+    );
+    const ownedSnapshot = await getDocs(ownedQuery);
+    const ownedGroups = ownedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Group));
+
+    // Use collectionGroup to find all groups where this user is a member
+    const membershipQuery = query(
+      collectionGroup(db, 'members'),
+      where('userId', '==', userId)
+    );
+    const membershipSnapshot = await getDocs(membershipQuery);
+
+    const denormalizedGroups = membershipSnapshot.docs
+      .map(memberDoc => {
+        const data = memberDoc.data();
+        if (
+          typeof data.groupId === 'string' &&
+          typeof data.groupName === 'string' &&
+          typeof data.professorId === 'string'
+        ) {
+          return {
+            id: data.groupId,
+            name: data.groupName,
+            professorId: data.professorId,
+            createdAt: data.groupCreatedAt || data.joinedAt || Date.now(),
+          } as Group;
+        }
+        return null;
+      })
+      .filter((group): group is Group => group !== null);
+
+    let membershipGroups: Group[];
+    if (denormalizedGroups.length === membershipSnapshot.docs.length) {
+      membershipGroups = denormalizedGroups;
     } else {
-      // Use collectionGroup to find all groups where this user is a member
-      const q = query(
-        collectionGroup(db, 'members'),
-        where('userId', '==', userId)
-      );
-      const snapshot = await getDocs(q);
-
-      const denormalizedGroups = snapshot.docs
-        .map(memberDoc => {
-          const data = memberDoc.data();
-          if (
-            typeof data.groupId === 'string' &&
-            typeof data.groupName === 'string' &&
-            typeof data.professorId === 'string'
-          ) {
-            return {
-              id: data.groupId,
-              name: data.groupName,
-              professorId: data.professorId,
-              createdAt: data.groupCreatedAt || data.joinedAt || Date.now(),
-            } as Group;
-          }
-          return null;
-        })
-        .filter((group): group is Group => group !== null);
-
-      if (denormalizedGroups.length === snapshot.docs.length) {
-        return denormalizedGroups;
-      }
-      
-      const groupRequests = snapshot.docs
+      const groupRequests = membershipSnapshot.docs
         .filter(mDoc => {
           const data = mDoc.data();
           return !(typeof data.groupId === 'string' && typeof data.groupName === 'string');
         })
         .map(mDoc => {
-        const groupRef = mDoc.ref.parent.parent;
-        if (!groupRef) return null;
-        return getDoc(groupRef);
-      });
-      
+          const groupRef = mDoc.ref.parent.parent;
+          if (!groupRef) return null;
+          return getDoc(groupRef);
+        });
+
       const groupSnaps = await Promise.all(groupRequests.filter(r => r !== null) as Promise<any>[]);
       const legacyGroups = groupSnaps
         .filter(snap => snap.exists())
         .map(snap => ({ id: snap.id, ...snap.data() } as Group));
-      return [...denormalizedGroups, ...legacyGroups];
+      membershipGroups = [...denormalizedGroups, ...legacyGroups];
     }
+
+    // Dedup por id: os dados de "owned" vêm direto de /groups (mais atuais)
+    // e vencem sobre a cópia denormalizada de "membership" quando a mesma
+    // sala aparecer nas duas buscas (ex.: professor que também tem um doc
+    // legado em members da própria sala).
+    const merged = new Map<string, Group>();
+    for (const g of membershipGroups) merged.set(g.id, g);
+    for (const g of ownedGroups) merged.set(g.id, g);
+    return Array.from(merged.values());
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
     return [];
@@ -296,6 +313,19 @@ export async function assignProfessorToGroup(groupId: string, professorId: strin
       professorId: professorId,
       updatedAt: serverTimestamp()
     });
+
+    // ARQ-02 (2ª parte): joinGroup grava uma cópia denormalizada de
+    // professorId em cada groups/{groupId}/members/{memberId} (usada por
+    // listUserGroups no branch de membership). Sem sincronizar essas cópias
+    // aqui, elas ficam apontando pro professor antigo depois de uma
+    // transferência. Não precisa ser atômico com o update acima -
+    // inconsistência temporária entre os docs não é crítica.
+    const membersSnapshot = await getDocs(collection(db, 'groups', groupId, 'members'));
+    await Promise.all(
+      membersSnapshot.docs.map(memberDoc =>
+        updateDoc(memberDoc.ref, { professorId })
+      )
+    );
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }

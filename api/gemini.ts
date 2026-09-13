@@ -368,6 +368,47 @@ function reserveGuestQuota(identity: Extract<RequestIdentity, { kind: 'guest' }>
 }
 
 type FirestoreIntegerField = { integerValue: string };
+type FirestoreQuotaDocument = { fields?: { queryCount?: FirestoreIntegerField }; updateTime?: string };
+type QuotaDocumentSnapshot = { currentCount: number; docExists: boolean; updateTime?: string };
+
+// Up to 3 read-check-write attempts. Only ever exercised by genuine, rare
+// same-user concurrency (see ARQ-03) - a single retry resolves the vast
+// majority of races, 3 is a small safety margin, not a load-bearing number.
+const MAX_QUOTA_COMMIT_ATTEMPTS = 3;
+
+async function getQuotaDocumentSnapshot(docPath: string, headers: Record<string, string>): Promise<QuotaDocumentSnapshot> {
+  const getResponse = await fetch(`${FIRESTORE_DOCUMENTS_URL}/${docPath}`, { headers });
+
+  if (getResponse.status === 200) {
+    const doc = (await getResponse.json()) as FirestoreQuotaDocument;
+    return {
+      currentCount: Number(doc.fields?.queryCount?.integerValue ?? '0'),
+      docExists: true,
+      updateTime: doc.updateTime,
+    };
+  }
+
+  if (getResponse.status === 404) {
+    return { currentCount: 0, docExists: false };
+  }
+
+  throw new Error(`Falha ao ler quota no Firestore (status ${getResponse.status}).`);
+}
+
+// The Firestore REST API maps a failed `currentDocument` precondition to a
+// 400/409 response with `error.status === 'FAILED_PRECONDITION'` in the JSON
+// body (distinct from other 400s, e.g. malformed request). Only that specific
+// case should trigger a reread-and-retry - any other failure is a real error
+// and must still fail closed.
+async function isFailedPreconditionCommit(response: Response): Promise<boolean> {
+  if (response.status !== 400 && response.status !== 409) return false;
+  try {
+    const body = (await response.json()) as { error?: { status?: string } };
+    return body?.error?.status === 'FAILED_PRECONDITION';
+  } catch {
+    return false;
+  }
+}
 
 export async function reserveUserQuota(identity: Extract<RequestIdentity, { kind: 'user' }>): Promise<boolean> {
   const docPath = `aiUsage/${identity.uid}_daily_${getTodayKey()}`;
@@ -377,54 +418,70 @@ export async function reserveUserQuota(identity: Extract<RequestIdentity, { kind
     'Content-Type': 'application/json',
   };
 
-  const getResponse = await fetch(`${FIRESTORE_DOCUMENTS_URL}/${docPath}`, { headers });
+  for (let attempt = 1; attempt <= MAX_QUOTA_COMMIT_ATTEMPTS; attempt += 1) {
+    const { currentCount, docExists, updateTime } = await getQuotaDocumentSnapshot(docPath, headers);
 
-  let currentCount = 0;
-  let docExists = false;
-  if (getResponse.status === 200) {
-    const doc = (await getResponse.json()) as { fields?: { queryCount?: FirestoreIntegerField } };
-    currentCount = Number(doc.fields?.queryCount?.integerValue ?? '0');
-    docExists = true;
-  } else if (getResponse.status !== 404) {
-    throw new Error(`Falha ao ler quota no Firestore (status ${getResponse.status}).`);
-  }
+    if (currentCount + 1 > identity.dailyLimit) {
+      return false;
+    }
 
-  if (currentCount + 1 > identity.dailyLimit) {
-    return false;
-  }
+    if (docExists && !updateTime) {
+      // Should never happen per the Firestore REST API contract (an existing
+      // document always carries `updateTime`) - refuse to fall back to a bare
+      // `exists: true` precondition, since that would silently reopen the race
+      // this function exists to close.
+      throw new Error('Falha ao ler quota no Firestore: updateTime ausente no documento existente.');
+    }
 
-  // Uses the Firestore REST `:commit` write with a REQUEST_TIME transform for
-  // lastQueryAt, the wire-level equivalent of the client SDK's serverTimestamp() -
-  // required because firestore.rules demands `incoming().lastQueryAt == request.time`.
-  const commitResponse = await fetch(`${FIRESTORE_DOCUMENTS_URL}:commit`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      writes: [
-        {
-          update: {
-            name: documentName,
-            fields: {
-              uid: { stringValue: identity.uid },
-              studyId: { stringValue: DAILY_QUOTA_STUDY_ID },
-              queryCount: { integerValue: String(currentCount + 1) },
+    // Ties the write to the exact document version just read: `updateTime` for an
+    // existing doc, `exists: false` for the first write of the day. Unlike a bare
+    // `exists: true`, this fails the commit if any concurrent request already wrote
+    // to this document between our GET and this :commit (see ARQ-03, 2026-09-13).
+    const currentDocument = docExists ? { updateTime } : { exists: false };
+
+    // Uses the Firestore REST `:commit` write with a REQUEST_TIME transform for
+    // lastQueryAt, the wire-level equivalent of the client SDK's serverTimestamp() -
+    // required because firestore.rules demands `incoming().lastQueryAt == request.time`.
+    const commitResponse = await fetch(`${FIRESTORE_DOCUMENTS_URL}:commit`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        writes: [
+          {
+            update: {
+              name: documentName,
+              fields: {
+                uid: { stringValue: identity.uid },
+                studyId: { stringValue: DAILY_QUOTA_STUDY_ID },
+                queryCount: { integerValue: String(currentCount + 1) },
+              },
             },
+            updateMask: { fieldPaths: ['uid', 'studyId', 'queryCount'] },
+            updateTransforms: [{ fieldPath: 'lastQueryAt', setToServerValue: 'REQUEST_TIME' }],
+            currentDocument,
           },
-          updateMask: { fieldPaths: ['uid', 'studyId', 'queryCount'] },
-          updateTransforms: [{ fieldPath: 'lastQueryAt', setToServerValue: 'REQUEST_TIME' }],
-          currentDocument: docExists ? { exists: true } : { exists: false },
-        },
-      ],
-    }),
-  });
+        ],
+      }),
+    });
 
-  if (!commitResponse.ok) {
-    // Most likely a race with a concurrent request from the same user (the
-    // `currentDocument.exists` precondition failed) - fail closed either way.
+    if (commitResponse.ok) {
+      return true;
+    }
+
+    if (await isFailedPreconditionCommit(commitResponse)) {
+      // Lost a race with a concurrent request from the same user that wrote to
+      // this document between our GET and this :commit - reread the now-current
+      // version and retry, instead of failing closed on a rare, transient race.
+      continue;
+    }
+
     throw new Error(`Falha ao gravar quota no Firestore (status ${commitResponse.status}).`);
   }
 
-  return true;
+  // Retries exhausted while still losing the precondition race (sustained
+  // concurrency from the same user, expected to be very rare) - fail closed,
+  // same as any other real Firestore error.
+  throw new Error('Falha ao gravar quota no Firestore: precondição de concorrência não resolvida após novas tentativas.');
 }
 
 // Ajuste silencioso de UserProfile.experienceLevel a partir do que o

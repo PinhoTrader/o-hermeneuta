@@ -49,6 +49,11 @@ export default function GroupsPage() {
   const [showSidebar, setShowSidebar] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const preservingScrollRef = useRef(false);
+  const selectedGroupIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedGroupIdRef.current = selectedGroup?.id ?? null;
+  }, [selectedGroup]);
 
   const AI_GROUP: Group = {
     id: 'ai-instructor',
@@ -130,14 +135,24 @@ export default function GroupsPage() {
 
   const handleLoadMore = async () => {
     if (!selectedGroup || !lastDoc || loadingMore || !hasMore) return;
+    const requestGroupId = selectedGroup.id;
     const previousScrollHeight = scrollRef.current?.scrollHeight || 0;
     const previousScrollTop = scrollRef.current?.scrollTop || 0;
     preservingScrollRef.current = true;
     setLoadingMore(true);
     try {
       const { messages: older, nextLastDoc } = await fetchOlderMessages(selectedGroup.id, lastDoc, 25);
+
+      // Usuário pode ter trocado de sala enquanto a busca de mensagens
+      // antigas estava em andamento - descarta o resultado se não bater
+      // mais com a sala selecionada agora (ver ARQ-05).
+      if (selectedGroupIdRef.current !== requestGroupId) {
+        preservingScrollRef.current = false;
+        return;
+      }
+
       if (older.length < 25) setHasMore(false);
-      
+
       setMessages(prev => {
         const existingIds = new Set(prev.map(m => m.id));
         const uniqueOlder = older.filter(m => !existingIds.has(m.id));
@@ -173,6 +188,7 @@ export default function GroupsPage() {
     if (!selectedGroup || !newMessage.trim()) return;
     
     if (selectedGroup.id === 'ai-instructor') {
+      const requestGroupId = selectedGroup.id;
       const userMsg: Message = {
         id: Date.now().toString(),
         content: newMessage,
@@ -181,7 +197,7 @@ export default function GroupsPage() {
         timestamp: Date.now(),
         groupId: 'ai-instructor'
       };
-      
+
       setMessages(prev => [...prev, userMsg]);
       setNewMessage('');
       setLoadingAi(true);
@@ -191,9 +207,14 @@ export default function GroupsPage() {
           role: (m.senderId === 'ai' ? 'model' : 'user') as 'user' | 'model',
           content: m.content
         }));
-        
+
         const aiResponse = await generalAIChat(userMsg.content, history);
-        
+
+        // Usuário pode ter trocado de sala enquanto a resposta da IA estava
+        // pendente - descarta silenciosamente para não anexar a resposta
+        // na sala errada (ver ARQ-05).
+        if (selectedGroupIdRef.current !== requestGroupId) return;
+
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
           content: aiResponse,

@@ -185,6 +185,16 @@ service cloud.firestore {
         incoming().groupName is string && incoming().groupName.size() <= 100 &&
         incoming().professorId is string &&
         incoming().role in ['student', 'monitor', 'professor'];
+        // ARQ-02 (2ª parte): permite corrigir a cópia denormalizada de
+        // professorId em members/{memberId} depois de uma transferência de
+        // professor (assignProfessorToGroup). Só o professor ATUAL da sala
+        // (isProfessorOf lê o groups/{groupId} já existente, não o incoming)
+        // ou admin pode fazer essa correção, e só o campo professorId muda -
+        // nenhum outro campo do vínculo pode ser alterado por essa via.
+        allow update: if isSignedIn() && isApproved() &&
+          (isProfessorOf(groupId) || isAdmin()) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['professorId']) &&
+          incoming().professorId is string;
         allow delete: if isSignedIn() && isApproved() && (
           isProfessorOf(groupId) || isOwner(memberId) || isAdmin()
         );

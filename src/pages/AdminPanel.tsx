@@ -437,7 +437,8 @@ export default function AdminPanel() {
           <div className="space-y-2">
             <h3 className="text-xl font-bold font-serif text-slate-900">Excluir Usuário?</h3>
             <p className="text-sm text-slate-500">
-              Tem certeza que deseja excluir <strong>{userToDelete?.displayName || userToDelete?.email}</strong>? Esta ação não pode ser desfeita.
+              Isso remove o acesso de <strong>{userToDelete?.displayName || userToDelete?.email}</strong> ao Hermeneuta, apagando o perfil dela no app.
+              Isso <strong>não</strong> apaga a conta Google, os estudos ou as mensagens dela — se ela logar de novo, um perfil novo é criado, pendente de aprovação.
             </p>
           </div>
         </div>

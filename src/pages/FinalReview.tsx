@@ -11,7 +11,8 @@ export default function FinalReview({ onBack, onComplete }: { onBack: () => void
   const sections = [
     { title: 'Observações', content: currentStudy?.observations },
     { title: 'Perguntas', content: currentStudy?.questionsText },
-    { title: 'Gênero & Estrutura', content: currentStudy?.genre },
+    { title: 'Gênero', content: currentStudy?.genre },
+    { title: 'Estrutura', content: currentStudy?.structure },
     { title: 'Contexto', content: currentStudy?.contextText },
     { title: 'Ideia Principal', content: currentStudy?.mainIdea },
     { title: 'Intento Transformador', content: currentStudy?.transformingIntent },

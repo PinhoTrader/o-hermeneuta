@@ -138,12 +138,21 @@ gravação no Firestore — podem divergir).
   request.time` exatamente. Falha de leitura/escrita no Firestore é tratada
   como "fail closed" (nega a requisição, não abre exceção).
 
-**Limitação conhecida e aceita**: não há transação — duas requisições
-simultâneas do mesmo usuário podem ler a mesma contagem antes de qualquer
-uma commitar, permitindo passar do limite por 1 em concorrência rara. Dado
-o volume baixo (30/dia, uso interativo de uma pessoa por vez), não foi
-implementada transação Firestore (`:beginTransaction`) para isso — se abuso
-real for observado, é o próximo passo natural.
+**Corrigido em 2026-09-13 (ARQ-03)**: a corrida de leitura-decisão-escrita foi
+fechada sem precisar de transação Firestore (`:beginTransaction`). Para um
+documento já existente, a precondição do `:commit` passou de
+`currentDocument: { exists: true }` (só verifica existência, não versão) para
+`currentDocument: { updateTime: <valor exato lido no GET> }` — a API REST do
+Firestore retorna `updateTime` no nível raiz da resposta do GET (junto de
+`fields`/`name`), e o rejeita o commit com HTTP 400/409 e corpo
+`{ error: { status: 'FAILED_PRECONDITION' } }` se outra escrita já mudou o
+documento entre o GET e o COMMIT. `reserveUserQuota` faz um laço de até 3
+tentativas: em `FAILED_PRECONDITION`, relê o documento e reavalia o limite;
+qualquer outro erro (ou a precondição ainda falhando na 3ª tentativa) lança e
+cai no fail-closed já existente em `reserveQuota`. O caminho de documento
+inexistente (`exists: false`, primeira consulta do dia) não mudou — já
+estava correto, porque duas criações concorrentes do mesmo doc já resolvem a
+disputa de verdade via a precondição de existência.
 
 Testes em `src/test/geminiSecurity.test.ts` cobrem o formato exato da
 chamada REST (mock de `fetch`) — qualquer mudança no wire format do

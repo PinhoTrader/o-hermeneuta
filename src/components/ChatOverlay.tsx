@@ -40,6 +40,11 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
   const [loading, setLoading] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const selectedGroupIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedGroupIdRef.current = selectedGroup?.id ?? null;
+  }, [selectedGroup]);
 
   const AI_GROUP: Group = {
     id: 'ai-instructor',
@@ -129,6 +134,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
     setNewMessage('');
 
     if (selectedGroup.id === 'ai-instructor') {
+      const requestGroupId = selectedGroup.id;
       const userMsg: Message = {
         id: Date.now().toString(),
         content,
@@ -137,7 +143,7 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
         timestamp: Date.now(),
         groupId: 'ai-instructor'
       };
-      
+
       setMessages(prev => [...prev, userMsg]);
       setLoadingAi(true);
       setChatError(null);
@@ -149,6 +155,11 @@ export function ChatOverlay({ isOpen, onClose }: ChatOverlayProps) {
         }));
 
         const aiResponse = await generalAIChat(content, history);
+
+        // Usuário pode ter trocado de sala enquanto a resposta da IA estava
+        // pendente - descarta silenciosamente para não anexar a resposta
+        // na sala errada (ver ARQ-05).
+        if (selectedGroupIdRef.current !== requestGroupId) return;
 
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),

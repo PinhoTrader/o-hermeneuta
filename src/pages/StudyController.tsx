@@ -33,7 +33,9 @@ const STEPS = [
     methodTip: 'Vá além das perguntas básicas (o quê, onde). Faça perguntas VIGOROSAS (por que, como) que buscam a racionalidade e o intento do autor.' },
   { id: 'genre', label: 'Gênero & Estilo', icon: ScrollText, field: 'genre',
     desc: 'Identifique o gênero literário e como o autor organiza as ideias.',
-    placeholder: 'Gênero: Narrativa/Poesia/Epístola...\nEstrutura: Introdução (v.1-5)...',
+    placeholder: 'Ex: Narrativa/Poesia/Epístola...',
+    secondaryField: 'structure', secondaryTitle: 'Estrutura',
+    secondaryPlaceholder: 'Ex: Introdução (v.1-5), Corpo (v.6-12)...',
     methodTip: 'Use a analogia das frutas: cada gênero se aborda de forma diferente. Identifique o TOM (atitude do autor) e o HUMOR (estado de espírito pretendido no leitor).' },
   { id: 'context', label: 'Contexto', icon: Map, field: 'contextText', 
     desc: 'Explore o pano de fundo histórico, cultural e literário.',
@@ -130,6 +132,9 @@ export default function StudyController() {
               description={currentStep.desc!}
               placeholder={currentStep.placeholder!}
               methodTip={(currentStep as any).methodTip}
+              secondaryField={(currentStep as any).secondaryField}
+              secondaryTitle={(currentStep as any).secondaryTitle}
+              secondaryPlaceholder={(currentStep as any).secondaryPlaceholder}
               onNext={() => setCurrentStepIndex(prev => Math.min(STEPS.length - 1, prev + 1))}
               onBack={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
             />

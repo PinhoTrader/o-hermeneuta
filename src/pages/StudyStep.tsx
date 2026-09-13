@@ -17,6 +17,9 @@ interface StudyStepProps {
   description: string;
   placeholder: string;
   methodTip?: string;
+  secondaryField?: string;
+  secondaryTitle?: string;
+  secondaryPlaceholder?: string;
   onNext: () => void;
   onBack: () => void;
 }
@@ -26,13 +29,15 @@ export interface StudyStepHandle {
 }
 
 const StudyStep = React.forwardRef<StudyStepHandle, StudyStepProps>(function StudyStep(
-  { title, field, description, placeholder, methodTip, onNext, onBack },
+  { title, field, description, placeholder, methodTip, secondaryField, secondaryTitle, secondaryPlaceholder, onNext, onBack },
   ref
 ) {
   const { currentStudy, updateCurrentStudy } = useStudy();
   const { profile } = useAuth();
   const [content, setSelection] = useState<string>((currentStudy as any)?.[field] || '');
   const [lastSavedContent, setLastSavedContent] = useState<string>((currentStudy as any)?.[field] || '');
+  const [content2, setContent2] = useState<string>(secondaryField ? (currentStudy as any)?.[secondaryField] || '' : '');
+  const [lastSavedContent2, setLastSavedContent2] = useState<string>(secondaryField ? (currentStudy as any)?.[secondaryField] || '' : '');
   const [aiFeedback, setAiFeedback] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
@@ -47,13 +52,21 @@ const StudyStep = React.forwardRef<StudyStepHandle, StudyStepProps>(function Stu
      const dbContent = (currentStudy as any)?.[field] || '';
      setSelection(dbContent);
      setLastSavedContent(dbContent);
+     if (secondaryField) {
+       const dbContent2 = (currentStudy as any)?.[secondaryField] || '';
+       setContent2(dbContent2);
+       setLastSavedContent2(dbContent2);
+     } else {
+       setContent2('');
+       setLastSavedContent2('');
+     }
      setAiFeedback(null);
      setAiError(null);
      setSaveError(false);
      if (currentStudy?.bibleSelection?.translation) {
        setTranslation(currentStudy.bibleSelection.translation);
      }
-  }, [field, currentStudy?.id]); // Only reset on field change or study change
+  }, [field, secondaryField, currentStudy?.id]); // Only reset on field change or study change
 
   // Smart Autosave Logic
   useEffect(() => {
@@ -80,6 +93,31 @@ const StudyStep = React.forwardRef<StudyStepHandle, StudyStepProps>(function Stu
 
     return () => clearTimeout(timer);
   }, [content, field]);
+
+  // Smart Autosave Logic (segundo campo, ex: 'structure' na etapa Gênero & Estilo)
+  useEffect(() => {
+    if (!secondaryField) return;
+    if (content2 === lastSavedContent2) return;
+
+    const timer = setTimeout(async () => {
+      if (content2 !== lastSavedContent2) {
+        try {
+          setSaving(true);
+          await updateCurrentStudy({ [secondaryField]: content2 });
+          setLastSavedContent2(content2);
+          setSaveError(false);
+          console.info(`[Autosave] Saved field: ${secondaryField}`);
+        } catch (err) {
+          console.error('[Autosave] Error:', err);
+          setSaveError(true);
+        } finally {
+          setSaving(false);
+        }
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [content2, secondaryField]);
 
   useEffect(() => {
     const updateText = async () => {
@@ -117,11 +155,17 @@ const StudyStep = React.forwardRef<StudyStepHandle, StudyStepProps>(function Stu
   }, [translation]);
 
   const handleSave = async () => {
-    if (content === lastSavedContent) return;
+    const pendingUpdates: Partial<Record<string, string>> = {};
+    if (content !== lastSavedContent) pendingUpdates[field] = content;
+    if (secondaryField && content2 !== lastSavedContent2) pendingUpdates[secondaryField] = content2;
+
+    if (Object.keys(pendingUpdates).length === 0) return;
+
     setSaving(true);
     try {
-      await updateCurrentStudy({ [field]: content });
+      await updateCurrentStudy(pendingUpdates);
       setLastSavedContent(content);
+      if (secondaryField) setLastSavedContent2(content2);
       setSaveError(false);
     } catch (err) {
       console.error('Manual save failed:', err);
@@ -132,7 +176,7 @@ const StudyStep = React.forwardRef<StudyStepHandle, StudyStepProps>(function Stu
   };
 
   React.useImperativeHandle(ref, () => ({
-    flush: handleSave, // handleSave já só grava se content !== lastSavedContent
+    flush: handleSave, // handleSave já só grava os campos (principal e secundário) que ainda não foram salvos
   }));
 
   // "Voltar" precisa garantir o mesmo save do "Próximo Passo" antes de navegar,
@@ -164,7 +208,10 @@ const StudyStep = React.forwardRef<StudyStepHandle, StudyStepProps>(function Stu
     setAiFeedback(null);
     setAiError(null);
     try {
-      const feedback = await getStageFeedback(title, { ...currentStudy, [field]: content } as any, profile?.experienceLevel);
+      const draftStudy = secondaryField
+        ? { ...currentStudy, [field]: content, [secondaryField]: content2 }
+        : { ...currentStudy, [field]: content };
+      const feedback = await getStageFeedback(title, draftStudy as any, profile?.experienceLevel);
       setAiFeedback(feedback);
     } catch (err) {
       console.error('[AI Review] Error:', err);
@@ -229,7 +276,21 @@ const StudyStep = React.forwardRef<StudyStepHandle, StudyStepProps>(function Stu
             value={content}
             onChange={(e) => setSelection(e.target.value)}
           />
-          
+
+          {secondaryField && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-slate-400 px-1">
+                {secondaryTitle || 'Detalhes adicionais'}
+              </label>
+              <textarea
+                className="w-full min-h-[200px] p-6 glass-card rounded-2xl focus:ring-2 focus:ring-brand-primary outline-none text-slate-800 leading-relaxed font-sans placeholder:italic"
+                placeholder={secondaryPlaceholder}
+                value={content2}
+                onChange={(e) => setContent2(e.target.value)}
+              />
+            </div>
+          )}
+
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="sm" onClick={handleSave} loading={saving}>
