@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStudy } from '../context/StudyContext';
 import { Button } from '../components/ui/Button';
 import { StepTabs } from '../components/ui/StepTabs';
 import BibleSelection from './BibleSelection';
-import StudyStep from './StudyStep';
+import StudyStep, { StudyStepHandle } from './StudyStep';
 import FinalReview from './FinalReview';
 import { motion } from 'framer-motion';
 import { fade, fadeZoom } from '../lib/motionVariants';
@@ -63,6 +63,8 @@ export default function StudyController() {
   const { currentStudy, loadStudy, updateCurrentStudy, loading } = useStudy();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
+  const studyStepRef = useRef<StudyStepHandle>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -100,7 +102,15 @@ export default function StudyController() {
           <StepTabs
             steps={STEPS.map((step) => step.label)}
             activeIndex={currentStepIndex}
-            onSelect={(idx) => setCurrentStepIndex(idx)}
+            onSelect={async (idx) => {
+              // Troca de etapa pelas abas desmonta o StudyStep atual (key={currentStep.id}),
+              // o que cancelaria o autosave de 3s pendente — força salvar antes, igual
+              // handleBack/handleNext já fazem para os botões Voltar/Próximo Passo.
+              if (studyStepRef.current) {
+                await studyStepRef.current.flush();
+              }
+              setCurrentStepIndex(idx);
+            }}
           />
         </div>
       )}
@@ -113,6 +123,7 @@ export default function StudyController() {
 
           {currentStep.id !== 'bible' && currentStep.id !== 'review' && (
             <StudyStep
+              ref={studyStepRef}
               key={currentStep.id}
               title={currentStep.label}
               field={currentStep.field!}
@@ -125,13 +136,26 @@ export default function StudyController() {
           )}
 
          {currentStep.id === 'review' && !isFinished && (
-           <FinalReview 
-              onBack={() => setCurrentStepIndex(prev => prev - 1)}
-              onComplete={async () => {
-                await updateCurrentStudy({ status: 'completed' });
-                setIsFinished(true);
-              }}
-           />
+           <div className="space-y-4">
+             {finishError && (
+               <p className="max-w-4xl mx-auto text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                 {finishError}
+               </p>
+             )}
+             <FinalReview
+                onBack={() => setCurrentStepIndex(prev => prev - 1)}
+                onComplete={async () => {
+                  try {
+                    setFinishError(null);
+                    await updateCurrentStudy({ status: 'completed' });
+                    setIsFinished(true);
+                  } catch (err) {
+                    console.error('Failed to complete study:', err);
+                    setFinishError('Não foi possível concluir o estudo agora. Tente novamente em instantes.');
+                  }
+                }}
+             />
+           </div>
          )}
 
          {currentStep.id === 'review' && isFinished && (

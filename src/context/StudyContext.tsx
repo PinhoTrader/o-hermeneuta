@@ -56,6 +56,7 @@ export function StudyProvider({ children }: { children: React.ReactNode }) {
       console.error("Failed to update study:", error);
       const original = await getStudy(currentStudy.id);
       setCurrentStudy(original);
+      throw error;
     }
   };
 

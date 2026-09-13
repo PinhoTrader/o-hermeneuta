@@ -11,6 +11,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   doc,
+  deleteDoc,
   getDoc,
   setDoc,
   updateDoc,
@@ -97,6 +98,100 @@ describe('users/{userId}', () => {
   it('nega leitura/escrita sem autenticação', async () => {
     const anon = testEnv.unauthenticatedContext();
     await assertFails(getDoc(doc(anon.firestore(), 'users/alice')));
+  });
+
+  it('nega o próprio usuário criar o perfil já como admin aprovado (sem pré-cadastro nem ser super-admin)', async () => {
+    const alice = testEnv.authenticatedContext('alice', { email: 'alice@example.com' });
+    await assertFails(
+      setDoc(doc(alice.firestore(), 'users/alice'), {
+        email: 'alice@example.com',
+        role: 'admin',
+        isApproved: true,
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('permite o super-admin criar o próprio perfil já como admin aprovado', async () => {
+    const superAdmin = testEnv.authenticatedContext('super-uid', { email: 'escoladetradersead@gmail.com' });
+    await assertSucceeds(
+      setDoc(doc(superAdmin.firestore(), 'users/super-uid'), {
+        email: 'escoladetradersead@gmail.com',
+        role: 'admin',
+        isApproved: true,
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('vincula um pré-cadastro pendente (ID = e-mail) ao logar pela primeira vez com o mesmo role/isApproved', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users/professor@example.com'), {
+        email: 'professor@example.com',
+        role: 'professor',
+        isApproved: true,
+        createdAt: Timestamp.now(),
+      });
+    });
+
+    const professor = testEnv.authenticatedContext('prof-uid', { email: 'professor@example.com' });
+    await assertSucceeds(
+      setDoc(doc(professor.firestore(), 'users/prof-uid'), {
+        email: 'professor@example.com',
+        role: 'professor',
+        isApproved: true,
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('nega vincular ao pré-cadastro se o role/isApproved gravado não bater com o pendente', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users/professor@example.com'), {
+        email: 'professor@example.com',
+        role: 'professor',
+        isApproved: true,
+        createdAt: Timestamp.now(),
+      });
+    });
+
+    const professor = testEnv.authenticatedContext('prof-uid', { email: 'professor@example.com' });
+    await assertFails(
+      setDoc(doc(professor.firestore(), 'users/prof-uid'), {
+        email: 'professor@example.com',
+        role: 'admin',
+        isApproved: true,
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('permite o próprio usuário apagar apenas um doc cujo ID seja o próprio e-mail (limpeza do pré-cadastro)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users/professor@example.com'), {
+        email: 'professor@example.com',
+        role: 'professor',
+        isApproved: true,
+        createdAt: Timestamp.now(),
+      });
+    });
+
+    const professor = testEnv.authenticatedContext('prof-uid', { email: 'professor@example.com' });
+    await assertSucceeds(deleteDoc(doc(professor.firestore(), 'users/professor@example.com')));
+  });
+
+  it('nega o próprio usuário apagar o doc de UID real de outra pessoa', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users/bob'), {
+        email: 'bob@example.com',
+        role: 'student',
+        isApproved: false,
+        createdAt: Timestamp.now(),
+      });
+    });
+
+    const alice = testEnv.authenticatedContext('alice', { email: 'alice@example.com' });
+    await assertFails(deleteDoc(doc(alice.firestore(), 'users/bob')));
   });
 });
 
@@ -253,6 +348,21 @@ describe('aiUsage/{usageId} (quota do Instrutor de IA, ver padrao-prompt-ia)', (
   it('permite o dono ler seu próprio contador antes dele existir', async () => {
     const alice = testEnv.authenticatedContext('alice', { email: 'alice@example.com' });
     await assertSucceeds(getDoc(doc(alice.firestore(), 'aiUsage/alice_daily_2026-08-25')));
+  });
+
+  it('nega o próprio dono apagar seu contador diário (impede reiniciar a quota)', async () => {
+    const alice = testEnv.authenticatedContext('alice', { email: 'alice@example.com' });
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'aiUsage/alice_daily_2026-08-17'), {
+        uid: 'alice',
+        studyId: '__daily_quota__',
+        queryCount: 30,
+        lastQueryAt: Timestamp.now(),
+      });
+    });
+
+    await assertFails(deleteDoc(doc(alice.firestore(), 'aiUsage/alice_daily_2026-08-17')));
   });
 
   it('nega outro usuário ler o contador de alguém', async () => {

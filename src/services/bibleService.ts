@@ -200,31 +200,40 @@ function sanitizeBibleText(text: string): string {
     .trim();
 }
 
+export interface FetchBibleTextResult {
+  text: string;
+  translationUsed: string;
+}
+
 // --- Cache System ---
 const BIBLE_CACHE_KEY = 'hermeneuta_bible_cache';
-const memoryCache: Record<string, string> = {};
+const memoryCache: Record<string, FetchBibleTextResult> = {};
 
-function getCachedText(key: string): string | null {
+function getCachedText(key: string): FetchBibleTextResult | null {
   if (memoryCache[key]) return memoryCache[key];
   try {
     const local = localStorage.getItem(BIBLE_CACHE_KEY);
     if (local) {
       const parsed = JSON.parse(local);
-      if (parsed[key]) {
-        memoryCache[key] = parsed[key];
-        return parsed[key];
+      const entry = parsed[key];
+      // Formato antigo guardava só a string do texto — cache local do
+      // navegador, não precisa de compatibilidade retroativa; entradas no
+      // formato antigo são simplesmente ignoradas e re-buscadas.
+      if (entry && typeof entry === 'object' && typeof entry.text === 'string') {
+        memoryCache[key] = entry;
+        return entry;
       }
     }
   } catch (e) {}
   return null;
 }
 
-function setCachedText(key: string, text: string) {
-  memoryCache[key] = text;
+function setCachedText(key: string, value: FetchBibleTextResult) {
+  memoryCache[key] = value;
   try {
     const local = localStorage.getItem(BIBLE_CACHE_KEY);
     const cache = local ? JSON.parse(local) : {};
-    cache[key] = text;
+    cache[key] = value;
     // Limit cache size
     const keys = Object.keys(cache);
     if (keys.length > 300) delete cache[keys[0]];
@@ -232,19 +241,20 @@ function setCachedText(key: string, text: string) {
   } catch (e) {}
 }
 
-export async function fetchBibleText(book: string, chapter: number, verseStart: number, verseEnd: number, translation: string = 'ARA') {
+export async function fetchBibleText(book: string, chapter: number, verseStart: number, verseEnd: number, translation: string = 'ARA'): Promise<FetchBibleTextResult> {
   const cacheKey = `${translation}-${book}-${chapter}-${verseStart}-${verseEnd}`;
   const cached = getCachedText(cacheKey);
-  if (cached) return sanitizeBibleText(cached);
+  if (cached) return { text: sanitizeBibleText(cached.text), translationUsed: cached.translationUsed };
 
   const mappingKey = BOOK_MAPPING[book] || book.toLowerCase();
   let result = "";
+  let translationUsed = translation;
 
   try {
     if (translation === 'NVI') {
       try { result = await getMaatheusBibleText(book, chapter, verseStart, verseEnd); } catch (e) {}
     }
-    
+
     if (!result && ['NAA', 'ARA', 'NVT', 'NTLH'].includes(translation)) {
       try { result = await getPrayerPulseBibleText(translation, book, chapter, verseStart, verseEnd); } catch (e) {}
     }
@@ -280,20 +290,31 @@ export async function fetchBibleText(book: string, chapter: number, verseStart: 
         const response = await fetch(`https://bible-api.com/${englishPassage}?translation=almeida`);
         if (response.ok) {
           const data = await response.json();
-          if (data.text) result = data.text;
+          if (data.text) {
+            result = data.text;
+            // Esse fallback sempre pede "almeida" ao bible-api.com, independente
+            // da tradução pedida pelo usuário — rotular com a tradução original
+            // seria enganoso. ARC é a tradução mais próxima do Almeida já usada
+            // no restante do app (ver VERSION_MAPPING/LOCAL_BIBLE_ASSETS).
+            translationUsed = 'ARC';
+          }
         }
       } catch (e) {}
     }
 
     if (result) {
       const cleanResult = sanitizeBibleText(result);
-      setCachedText(cacheKey, cleanResult);
-      return cleanResult;
+      const finalResult: FetchBibleTextResult = { text: cleanResult, translationUsed };
+      setCachedText(cacheKey, finalResult);
+      return finalResult;
     }
 
-    return "Ops! Não conseguimos carregar o texto automático agora. Por favor, utilize sua Bíblia física para preencher esta etapa e continue seu estudo.";
+    return {
+      text: "Ops! Não conseguimos carregar o texto automático agora. Por favor, utilize sua Bíblia física para preencher esta etapa e continue seu estudo.",
+      translationUsed: translation,
+    };
   } catch (error) {
     console.error('Unified Bible Service Critical Failure:', error);
-    return "Erro ao carregar texto.";
+    return { text: "Erro ao carregar texto.", translationUsed: translation };
   }
 }

@@ -77,7 +77,7 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
       : {};
 
     try {
-      const bibleText = await fetchBibleText(
+      const { text: bibleText, translationUsed } = await fetchBibleText(
         selection.book,
         selection.chapter,
         selection.verseStart,
@@ -93,6 +93,7 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
         ...autoTitle,
         bibleSelection: {
           ...selection,
+          translation: translationUsed,
           text: bibleText
         }
       });
@@ -100,14 +101,19 @@ export default function BibleSelection({ onNext }: { onNext: () => void }) {
     } catch (error) {
       console.error(error);
       setWarning('Não conseguimos carregar o texto automaticamente agora. Você pode continuar e preencher/conferir o trecho manualmente.');
-      await updateCurrentStudy({
-        ...autoTitle,
-        bibleSelection: {
-          ...selection,
-          text: 'Texto não carregado automaticamente. Confira o trecho em sua Bíblia e continue o estudo.'
-        }
-      });
-      onNext();
+      try {
+        await updateCurrentStudy({
+          ...autoTitle,
+          bibleSelection: {
+            ...selection,
+            text: 'Texto não carregado automaticamente. Confira o trecho em sua Bíblia e continue o estudo.'
+          }
+        });
+        onNext();
+      } catch (saveError) {
+        console.error('Failed to save fallback bible selection:', saveError);
+        setError('Não foi possível salvar sua seleção agora. Tente novamente em instantes.');
+      }
     } finally {
       setLoading(false);
     }

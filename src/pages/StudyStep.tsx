@@ -21,7 +21,14 @@ interface StudyStepProps {
   onBack: () => void;
 }
 
-export default function StudyStep({ title, field, description, placeholder, methodTip, onNext, onBack }: StudyStepProps) {
+export interface StudyStepHandle {
+  flush: () => Promise<void>;
+}
+
+const StudyStep = React.forwardRef<StudyStepHandle, StudyStepProps>(function StudyStep(
+  { title, field, description, placeholder, methodTip, onNext, onBack },
+  ref
+) {
   const { currentStudy, updateCurrentStudy } = useStudy();
   const { profile } = useAuth();
   const [content, setSelection] = useState<string>((currentStudy as any)?.[field] || '');
@@ -79,7 +86,7 @@ export default function StudyStep({ title, field, description, placeholder, meth
       if (currentStudy?.bibleSelection && translation !== currentStudy.bibleSelection.translation) {
         setLoadingBible(true);
         try {
-          const bibleText = await fetchBibleText(
+          const { text: bibleText, translationUsed } = await fetchBibleText(
             currentStudy.bibleSelection.book,
             currentStudy.bibleSelection.chapter,
             currentStudy.bibleSelection.verseStart,
@@ -89,10 +96,16 @@ export default function StudyStep({ title, field, description, placeholder, meth
           await updateCurrentStudy({
             bibleSelection: {
               ...currentStudy.bibleSelection,
-              translation,
+              translation: translationUsed,
               text: bibleText
             }
           });
+          // O fallback final de fetchBibleText pode devolver uma tradução
+          // diferente da pedida (ver bibleService) — mantém o seletor
+          // sincronizado com o que foi de fato salvo.
+          if (translationUsed !== translation) {
+            setTranslation(translationUsed);
+          }
         } catch (err) {
           console.error(err);
         } finally {
@@ -117,6 +130,10 @@ export default function StudyStep({ title, field, description, placeholder, meth
       setSaving(false);
     }
   };
+
+  React.useImperativeHandle(ref, () => ({
+    flush: handleSave, // handleSave já só grava se content !== lastSavedContent
+  }));
 
   // "Voltar" precisa garantir o mesmo save do "Próximo Passo" antes de navegar,
   // senão o timer de autosave pendente é cancelado (componente remonta via
@@ -315,4 +332,6 @@ export default function StudyStep({ title, field, description, placeholder, meth
       </div>
     </motion.div>
   );
-}
+});
+
+export default StudyStep;

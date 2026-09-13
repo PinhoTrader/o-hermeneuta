@@ -73,10 +73,16 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
 
 export async function registerUserAccount(data: { email: string, name: string, phone: string, role: UserRole }) {
   try {
+    // Normalizado (trim + lowercase) porque o e-mail vira o ID do doc de
+    // pré-cadastro (ver abaixo) e a regra de create em firestore.rules
+    // localiza esse doc pelo caminho users/{request.auth.token.email} -
+    // sem essa normalização, uma diferença de caixa entre o que o admin
+    // digitou aqui e o que o Google devolve no login quebraria o vínculo.
+    const normalizedEmail = data.email.trim().toLowerCase();
     const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('email', '==', data.email));
+    const q = query(usersRef, where('email', '==', normalizedEmail));
     const snapshot = await getDocs(q);
-    
+
     if (!snapshot.empty) {
       const existingDoc = snapshot.docs[0];
       await updateDoc(doc(db, 'users', existingDoc.id), {
@@ -86,10 +92,15 @@ export async function registerUserAccount(data: { email: string, name: string, p
         displayName: data.name
       });
     } else {
-      const newUserRef = doc(collection(db, 'users'));
+      // ID determinístico = e-mail (minúsculo) do convidado, em vez de um ID
+      // aleatório. Isso permite que firestore.rules encontre este pré-cadastro
+      // por caminho conhecido (exists()/get(), sem query) quando o convidado
+      // logar pela primeira vez e AuthContext.tsx tentar vincular a conta real.
+      const pendingId = normalizedEmail;
+      const newUserRef = doc(db, 'users', pendingId);
       const newUser = {
         uid: newUserRef.id,
-        email: data.email,
+        email: normalizedEmail,
         displayName: data.name,
         phone: data.phone,
         role: data.role,

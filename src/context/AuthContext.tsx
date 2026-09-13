@@ -141,12 +141,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 role: (preRegData.role || 'student').toLowerCase() as UserRole,
               } as UserProfile;
 
+              // IMPORTANTE: cria o doc no UID real ANTES de apagar o pré-cadastro.
+              // A regra de create em firestore.rules (hasMatchingPendingInvite)
+              // confirma role/isApproved contra o doc pendente via exists()/get()
+              // no caminho users/{email} - se o delete rodasse primeiro, esse doc
+              // já teria sumido e o create seria negado (fail closed por design).
+              await setDoc(userRef, userProfile);
+
               // Delete old temp doc if the IDs are different
               if (preRegDoc.id !== firebaseUser.uid) {
                 await deleteDoc(doc(db, 'users', preRegDoc.id));
               }
-              
-              await setDoc(userRef, userProfile);
             } else {
               // New user, not pre-registered
               const isAdminEmail = isSuperAdminEmail(firebaseUser.email);

@@ -98,6 +98,25 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/groups/$(groupId)).data.professorId == request.auth.uid;
     }
 
+    // Caminho determinístico de um pré-cadastro pendente: registerUserAccount
+    // (src/services/adminService.ts) usa o e-mail (minúsculo) do convidado como
+    // ID do doc, exatamente para que esta regra consiga localizá-lo por caminho
+    // (exists()/get()) sem precisar de query - Firestore rules não suportam
+    // where(). Limitação conhecida: se request.auth.token.email vier com uma
+    // caixa diferente da usada no cadastro, exists() não encontra o doc (não há
+    // função de lower-case disponível na linguagem de regras); Gmail sempre
+    // devolve e-mail em minúsculas hoje, então isso não é um problema real em
+    // produção, mas fica documentado para um provedor de auth futuro.
+    function pendingInvitePath() {
+      return /databases/$(database)/documents/users/$(request.auth.token.email);
+    }
+
+    function hasMatchingPendingInvite() {
+      return exists(pendingInvitePath()) &&
+        get(pendingInvitePath()).data.role == incoming().role &&
+        get(pendingInvitePath()).data.isApproved == incoming().isApproved;
+    }
+
     // --- Collection Routes ---
 
     match /users/{userId} {
@@ -107,9 +126,29 @@ service cloud.firestore {
         (isApproved() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'student') in ['professor', 'monitor', 'contributor'])
       ));
       allow get: if isOwner(userId) || isAdmin() || isApproved();
-      allow create: if (isOwner(userId) || isAdmin()) && isValidUser(incoming());
+      // Um usuário só pode criar o PRÓPRIO doc (isOwner) com um role/isApproved
+      // elevado se isso vier de uma fonte confiável - nunca por autodeclaração
+      // livre (ver Falha 1 do raio-X de segurança): e-mail de super-admin,
+      // um pré-cadastro pendente com o MESMO role/isApproved já gravado por um
+      // admin, ou o valor seguro padrão de conta nova (student, não aprovado).
+      // isAdmin() continua podendo criar o doc de qualquer pessoa (fluxo de
+      // pré-cadastro feito pelo admin em registerUserAccount).
+      allow create: if isValidUser(incoming()) && (
+        isAdmin() ||
+        (isOwner(userId) && (
+          (isSuperAdminEmail() && incoming().role == 'admin' && incoming().isApproved == true) ||
+          (!isSuperAdminEmail() && hasMatchingPendingInvite()) ||
+          (!isSuperAdminEmail() && incoming().role == 'student' && incoming().isApproved == false)
+        ))
+      );
       allow update: if isAdmin() || (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role && incoming().isApproved == existing().isApproved);
-      allow delete: if isAdmin();
+      // Além do admin, o próprio usuário pode apagar um doc cujo ID (caminho)
+      // seja igual ao seu e-mail autenticado - isso só existe para permitir que
+      // AuthContext.tsx limpe o doc de pré-cadastro (ID = e-mail) depois de
+      // vinculá-lo ao UID real no primeiro login. Nunca permite apagar um doc de
+      // UID real de terceiros, porque um UID do Firebase Auth nunca é igual a
+      // um e-mail.
+      allow delete: if isAdmin() || (isSignedIn() && userId == request.auth.token.email);
     }
 
     match /groups/{groupId} {
@@ -196,7 +235,15 @@ service cloud.firestore {
                     incoming().studyId == existing().studyId &&
                     incoming().queryCount is int && incoming().queryCount >= existing().queryCount &&
                     incoming().lastQueryAt == request.time;
-      allow delete: if isSignedIn() && existing().uid == request.auth.uid;
+      // Só admin apaga (suporte pode resetar a quota de alguém manualmente).
+      // Antes permitia que o próprio dono apagasse o contador diário
+      // (aiUsage/{uid}_daily_{data}, ID previsível) e reiniciasse a quota do
+      // Instrutor de IA do zero via console do navegador - ver Falha 2 do
+      // raio-X de segurança. reserveUserQuota (api/gemini.ts) trata "doc não
+      // existe" como contagem zero, então autodeleção = bypass de limite.
+      // src/services/aiUsageService.ts::resetQueryCount ainda existe mas não é
+      // chamado por nenhum fluxo real do app (só pelo próprio teste dele).
+      allow delete: if isAdmin();
     }
   }
 }
