@@ -193,6 +193,24 @@ describe('users/{userId}', () => {
     const alice = testEnv.authenticatedContext('alice', { email: 'alice@example.com' });
     await assertFails(deleteDoc(doc(alice.firestore(), 'users/bob')));
   });
+
+  it('nega o próprio usuário trocar o e-mail do perfil (QA-01: sequestro de promoção admin)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users/alice'), {
+        email: 'alice@example.com',
+        role: 'student',
+        isApproved: false,
+        createdAt: Timestamp.now(),
+      });
+    });
+
+    const alice = testEnv.authenticatedContext('alice', { email: 'alice@example.com' });
+    await assertFails(
+      updateDoc(doc(alice.firestore(), 'users/alice'), {
+        email: 'vitima@example.com',
+      })
+    );
+  });
 });
 
 describe('studies/{studyId}', () => {
@@ -308,6 +326,20 @@ describe('aiUsage/{usageId} (quota do Instrutor de IA, ver padrao-prompt-ia)', (
         uid: 'bob',
         studyId: '__daily_quota__',
         queryCount: 1,
+        lastQueryAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('nega criar o contador de OUTRA pessoa mesmo usando o próprio uid no conteúdo (QA-02: sequestro de caminho)', async () => {
+    const alice = testEnv.authenticatedContext('alice', { email: 'alice@example.com' });
+    // ID do doc pertence a "vitima", mas o campo uid é o da própria Alice -
+    // sem a checagem de prefixo do caminho, isso passava antes.
+    await assertFails(
+      setDoc(doc(alice.firestore(), 'aiUsage/vitima_daily_2026-08-17'), {
+        uid: 'alice',
+        studyId: '__daily_quota__',
+        queryCount: 0,
         lastQueryAt: serverTimestamp(),
       })
     );

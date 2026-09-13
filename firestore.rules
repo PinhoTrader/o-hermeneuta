@@ -141,7 +141,11 @@ service cloud.firestore {
           (!isSuperAdminEmail() && incoming().role == 'student' && incoming().isApproved == false)
         ))
       );
-      allow update: if isAdmin() || (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role && incoming().isApproved == existing().isApproved);
+      // incoming().email == existing().email impede um usuário comum trocar o
+      // próprio e-mail para o endereço que um admin está prestes a cadastrar/
+      // promover (registerUserAccount busca e atualiza pelo campo email) - sem
+      // isso, o atacante "sequestra" a promoção destinada a outra pessoa.
+      allow update: if isAdmin() || (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role && incoming().isApproved == existing().isApproved && incoming().email == existing().email);
       // Além do admin, o próprio usuário pode apagar um doc cujo ID (caminho)
       // seja igual ao seu e-mail autenticado - isso só existe para permitir que
       // AuthContext.tsx limpe o doc de pré-cadastro (ID = e-mail) depois de
@@ -224,8 +228,14 @@ service cloud.firestore {
       // que o Firestore trata como 403 (não 404), fazendo reserveUserQuota falhar
       // "fail closed" e reportar limite diário atingido mesmo sem nenhum uso.
       allow get: if isSignedIn() && (resource == null || resource.data.uid == request.auth.uid);
+      // usageId.matches(uid + '_.*') impede um usuário criar o doc de quota de
+      // OUTRA pessoa (ex.: aiUsage/{uid-da-vitima}_daily_{hoje} com o próprio
+      // uid no conteúdo) - sem essa checagem, o `incoming().uid == request.auth.uid`
+      // sozinho não protege o CAMINHO do documento, só o campo, permitindo
+      // "sequestrar" o caminho que a vítima de verdade vai tentar usar depois.
       allow create: if isSignedIn() &&
                     incoming().uid == request.auth.uid &&
+                    usageId.matches(request.auth.uid + '_.*') &&
                     incoming().studyId is string && incoming().studyId.size() <= 128 &&
                     incoming().queryCount is int && incoming().queryCount >= 0 &&
                     incoming().lastQueryAt == request.time;
